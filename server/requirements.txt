@@ -1,0 +1,27 @@
+# FastAPI
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# LLM
+anthropic==0.18.1
+google-generativeai==0.4.1
+
+# STT - Whisper
+faster-whisper==1.0.1
+openai-whisper==20231117
+
+# TTS
+edge-tts==6.1.9
+
+# Utils
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+aiofiles==23.2.1
+
+# Audio processing
+pydub==0.25.1
+
+# Security
+cryptography==42.0.2
