@@ -7,12 +7,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - API_SECRET_KEY=${API_SECRET_KEY:-eva-secret-key-change-me}
-      - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:-vault-key-change-me}
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - API_SECRET_KEY=${API_SECRET_KEY:-eva-secret-key}
+      - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:-vault-key}
     volumes:
       - eva-data:/app/data
-      - eva-audio:/app/data/audio
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
@@ -22,4 +23,3 @@ services:
 
 volumes:
   eva-data:
-  eva-audio:
