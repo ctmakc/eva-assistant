@@ -5,7 +5,7 @@ services:
     build: ./server
     container_name: eva-assistant
     ports:
-      - "8000:8000"
+      - "8080:8080"
     environment:
       - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
