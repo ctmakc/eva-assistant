@@ -1,94 +1,68 @@
 # EVA Development Context
 
-> Этот файл автоматически обновляется для сохранения контекста разработки.
 > Последнее обновление: 2025-01-20
 
 ## Текущий статус
 
-**Фаза:** 1 — MVP (в процессе)
-**Прогресс:** Backend готов, нужен деплой и тест
+**Фаза:** 1-4 завершены (Backend полный)
+**Следующее:** Gmail OAuth, Android клиент
 
 ## Что сделано
 
-### 2025-01-20
-- [x] Создана папка проекта `D:\EVA-PERSONAL-ASSISTANT`
-- [x] Написано полное ТЗ в `AGENTS.md`
-- [x] **Фаза 1 — Backend:**
-  - [x] Структура проекта создана
-  - [x] Docker + docker-compose настроены
-  - [x] FastAPI приложение с health endpoint
-  - [x] STT сервис (Faster Whisper)
-  - [x] TTS сервис (Edge-TTS)
-  - [x] LLM сервис (Claude Haiku)
-  - [x] Memory manager (история диалогов)
-  - [x] Profile manager (профиль пользователя)
-  - [x] API routes (voice/process, chat/message, etc.)
-  - [x] README с инструкциями
+### Backend (100%)
+- [x] FastAPI сервер
+- [x] STT (Faster Whisper)
+- [x] TTS (Edge-TTS)
+- [x] LLM (Gemini/Claude переключаемые)
+- [x] Memory система
+- [x] User Profile + Onboarding
+- [x] **Telegram бот** — отвечает через EVA
+- [x] **Credential Vault** — шифрованное хранилище паролей
+- [x] **Proactive Scheduler** — утренние приветствия, напоминания
+- [x] **Adaptive Engine** — учится что работает
 
-## Структура проекта
+### Pending
+- [ ] Gmail OAuth интеграция
+- [ ] Android клиент
 
+## Деплой
+
+**Сервер:** 194.61.52.176:8080
+**GitHub:** https://github.com/ctmakc/eva-assistant
+
+**Portainer Stack Environment Variables:**
 ```
-D:\EVA-PERSONAL-ASSISTANT\
-├── AGENTS.md              # Полное ТЗ
-├── CONTEXT.md             # Этот файл
-├── README.md              # Quick start
-├── docker-compose.yml
-├── .env.example
-└── server/
-    ├── Dockerfile
-    ├── requirements.txt
-    ├── main.py            # FastAPI app
-    ├── config.py          # Settings
-    ├── api/routes.py      # API endpoints
-    ├── core/
-    │   ├── stt.py         # Whisper
-    │   ├── tts.py         # Edge-TTS
-    │   └── llm.py         # Claude
-    ├── personality/
-    │   ├── memory.py      # Conversation history
-    │   └── profile.py     # User profile
-    ├── schemas/models.py  # Pydantic models
-    ├── integrations/      # (Phase 2)
-    └── proactive/         # (Phase 4)
+GEMINI_API_KEY=AIzaSyCzzSfAvhg222SRnRCp-s7_8xQkSdkuvNs
+LLM_PROVIDER=gemini
+TELEGRAM_BOT_TOKEN=<твой токен от @BotFather>
 ```
 
-## Решения и договорённости
+## API Endpoints
 
-| Тема | Решение |
-|------|---------|
-| Сервер | Docker на 194.61.52.176, порт 8000 |
-| LLM | Claude Haiku (claude-3-haiku-20240307) |
-| STT | Faster Whisper, модель "small" |
-| TTS | Edge-TTS (Svetlana RU, Aria EN) |
-| Характер EVA | Мягкая боевая подруга |
-| Имя владельца | Максим |
+### Core
+- `GET /api/v1/health` — статус
+- `POST /api/v1/voice/process` — голос → ответ
+- `POST /api/v1/chat/message` — текст → ответ
 
-## Следующие шаги
+### Integrations
+- `GET /api/v1/integrations/status` — статус интеграций
+- `POST /api/v1/integrations/credentials` — сохранить креды
+- `GET /api/v1/integrations/credentials` — список сервисов
 
-1. [ ] Создать `.env` файл с ANTHROPIC_API_KEY
-2. [ ] Задеплоить на сервер (docker-compose up)
-3. [ ] Протестировать API
-4. [ ] Начать Android клиент
+### Scheduler
+- `POST /api/v1/scheduler/reminder` — добавить напоминание
+- `POST /api/v1/scheduler/setup/{user_id}` — настроить расписание
 
-## Для восстановления контекста
+## Telegram бот
+
+1. Создай бота через @BotFather
+2. Получи токен
+3. Добавь `TELEGRAM_BOT_TOKEN` в Portainer environment
+4. Редеплой стэк
+5. Напиши боту `/start`
+
+## Восстановление контекста
 
 ```
-Продолжаем работу над EVA. Прочитай D:\EVA-PERSONAL-ASSISTANT\AGENTS.md и D:\EVA-PERSONAL-ASSISTANT\CONTEXT.md
-```
-
-## API для тестирования
-
-```bash
-# Health check
-curl http://194.61.52.176:8000/api/v1/health
-
-# Текстовый чат
-curl -X POST http://194.61.52.176:8000/api/v1/chat/message \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Привет!", "user_id": "maxim"}'
-
-# Голосовой (с файлом)
-curl -X POST http://194.61.52.176:8000/api/v1/voice/process \
-  -F "audio=@voice.wav" \
-  -F "user_id=maxim"
+Продолжаем EVA. Читай D:\EVA-PERSONAL-ASSISTANT\AGENTS.md и CONTEXT.md
 ```
