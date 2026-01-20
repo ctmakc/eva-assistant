@@ -234,3 +234,141 @@ async def delete_user(user_id: str):
     memory_manager.clear_history(user_id)
 
     return {"status": "ok", "message": f"User {user_id} deleted"}
+
+
+# ============== Integrations ==============
+
+@router.get("/integrations/status")
+async def integrations_status():
+    """Get status of all integrations."""
+    settings = get_settings()
+
+    status = {
+        "telegram": {
+            "configured": bool(settings.telegram_bot_token),
+            "status": "unknown"
+        },
+        "gmail": {
+            "configured": False,
+            "status": "not_implemented"
+        }
+    }
+
+    # Check Telegram status
+    if settings.telegram_bot_token:
+        try:
+            from integrations.telegram import get_telegram_integration
+            telegram = get_telegram_integration()
+            status["telegram"]["status"] = "running" if telegram._running else "stopped"
+            status["telegram"]["owner_set"] = telegram.owner_chat_id is not None
+        except:
+            status["telegram"]["status"] = "error"
+
+    return status
+
+
+@router.post("/integrations/credentials")
+async def store_credentials(
+    service: str = Form(...),
+    username: str = Form(default=None),
+    password: str = Form(default=None),
+    token: str = Form(default=None),
+    api_key: str = Form(default=None)
+):
+    """
+    Store credentials for a service.
+
+    EVA can ask for credentials dynamically:
+    "У меня нет доступа к Reddit" ->
+    User: "Вот логин-пароль: user / pass123" ->
+    EVA stores and uses them.
+    """
+    from integrations.vault import get_vault
+
+    vault = get_vault()
+
+    credentials = {}
+    if username:
+        credentials["username"] = username
+    if password:
+        credentials["password"] = password
+    if token:
+        credentials["token"] = token
+    if api_key:
+        credentials["api_key"] = api_key
+
+    if not credentials:
+        raise HTTPException(status_code=400, detail="No credentials provided")
+
+    vault.store(service, credentials)
+
+    return {
+        "status": "ok",
+        "service": service,
+        "message": f"Credentials stored for {service}"
+    }
+
+
+@router.get("/integrations/credentials")
+async def list_credentials():
+    """List services with stored credentials (no secrets returned)."""
+    from integrations.vault import get_vault
+
+    vault = get_vault()
+    services = vault.list_services()
+
+    return {
+        "services": [
+            {
+                "name": service,
+                "has_credentials": True
+            }
+            for service in services
+        ]
+    }
+
+
+@router.delete("/integrations/credentials/{service}")
+async def delete_credentials(service: str):
+    """Delete stored credentials for a service."""
+    from integrations.vault import get_vault
+
+    vault = get_vault()
+    if vault.delete(service):
+        return {"status": "ok", "message": f"Credentials deleted for {service}"}
+    raise HTTPException(status_code=404, detail=f"No credentials found for {service}")
+
+
+# ============== Scheduler ==============
+
+@router.post("/scheduler/reminder")
+async def add_reminder(
+    user_id: str = Form(default="default"),
+    message: str = Form(...),
+    minutes: int = Form(...)
+):
+    """Add a reminder that fires in N minutes."""
+    from datetime import datetime, timedelta
+    from proactive.scheduler import get_scheduler
+
+    scheduler = get_scheduler()
+    run_at = datetime.now() + timedelta(minutes=minutes)
+
+    reminder_id = scheduler.add_reminder(user_id, message, run_at)
+
+    return {
+        "status": "ok",
+        "reminder_id": reminder_id,
+        "will_fire_at": run_at.isoformat()
+    }
+
+
+@router.post("/scheduler/setup/{user_id}")
+async def setup_user_schedule(user_id: str):
+    """Setup default schedule for a user."""
+    from proactive.scheduler import get_scheduler
+
+    scheduler = get_scheduler()
+    scheduler.setup_user_schedule(user_id)
+
+    return {"status": "ok", "message": f"Schedule set up for {user_id}"}

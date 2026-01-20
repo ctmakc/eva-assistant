@@ -1,2 +1,1 @@
-# Proactive module - Phase 4
-# Will contain: scheduler.py, triggers.py
+from .scheduler import ProactiveScheduler, get_scheduler

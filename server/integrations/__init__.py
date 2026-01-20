@@ -1,2 +1,2 @@
-# Integrations module - Phase 2
-# Will contain: telegram.py, gmail.py, vault.py
+from .telegram import TelegramIntegration, get_telegram_integration
+from .vault import CredentialVault, get_vault

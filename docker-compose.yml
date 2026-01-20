@@ -12,6 +12,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - API_SECRET_KEY=${API_SECRET_KEY:-eva-secret-key}
       - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:-vault-key}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
     volumes:
       - eva-data:/app/data
     restart: unless-stopped

@@ -24,3 +24,9 @@ pydub>=0.25.0
 
 # Security
 cryptography>=42.0.0
+
+# Telegram
+python-telegram-bot>=20.7
+
+# Scheduler
+apscheduler>=3.10.0

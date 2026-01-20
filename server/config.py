@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     api_secret_key: str = "eva-secret-key-change-me"
     vault_master_key: str = "vault-key-change-me"
 
+    # Integrations
+    telegram_bot_token: str = ""
+
     # Whisper STT
     whisper_model: str = "small"  # tiny, base, small, medium, large
     whisper_device: str = "cpu"
