@@ -291,6 +291,28 @@ async def dashboard(request: Request):
     gmail = get_gmail_integration()
     gmail_ok = gmail.is_authenticated
 
+    # Get stats
+    import os
+    import json
+    profiles_dir = os.path.join(settings.data_dir, "profiles")
+    memory_dir = os.path.join(settings.data_dir, "memory")
+
+    user_count = 0
+    total_messages = 0
+
+    if os.path.exists(profiles_dir):
+        user_count = len([f for f in os.listdir(profiles_dir) if f.endswith('.json')])
+
+    if os.path.exists(memory_dir):
+        for f in os.listdir(memory_dir):
+            if f.endswith('.json'):
+                try:
+                    with open(os.path.join(memory_dir, f), 'r') as file:
+                        data = json.load(file)
+                        total_messages += len(data.get('messages', []))
+                except Exception:
+                    pass
+
     content = f'''
     <div class="card">
         <h2>📊 Статус</h2>
@@ -307,6 +329,24 @@ async def dashboard(request: Request):
                 <div class="stat-value">{"✅" if gmail_ok else "❌"}</div>
                 <div class="stat-label">Gmail</div>
             </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📈 Статистика</h2>
+        <div class="grid">
+            <div class="stat">
+                <div class="stat-value">{user_count}</div>
+                <div class="stat-label">Пользователей</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">{total_messages}</div>
+                <div class="stat-label">Сообщений</div>
+            </div>
+        </div>
+        <div class="mt-2">
+            <a href="/api/v1/conversation/default/export?format=text" class="btn btn-secondary" target="_blank">Экспорт чата (txt)</a>
+            <a href="/api/v1/admin/stats" class="btn btn-secondary" style="margin-left: 8px;" target="_blank">API Stats</a>
         </div>
     </div>
 

@@ -263,3 +263,105 @@ async def request_restart(_: bool = Depends(require_auth)):
         "success": True,
         "message": "Restart requested. In Docker, restart the container manually or redeploy the stack."
     }
+
+
+@router.get("/stats")
+async def get_stats(_: bool = Depends(require_auth)):
+    """Get usage statistics."""
+    import os
+    import psutil
+    from datetime import datetime
+
+    settings = get_settings()
+
+    # Count users and messages
+    profiles_dir = os.path.join(settings.data_dir, "profiles")
+    memory_dir = os.path.join(settings.data_dir, "memory")
+
+    user_count = 0
+    total_messages = 0
+
+    if os.path.exists(profiles_dir):
+        user_count = len([f for f in os.listdir(profiles_dir) if f.endswith('.json')])
+
+    if os.path.exists(memory_dir):
+        import json
+        for f in os.listdir(memory_dir):
+            if f.endswith('.json'):
+                try:
+                    with open(os.path.join(memory_dir, f), 'r') as file:
+                        data = json.load(file)
+                        total_messages += len(data.get('messages', []))
+                except Exception:
+                    pass
+
+    # Audio files
+    audio_dir = os.path.join(settings.data_dir, "audio")
+    audio_count = 0
+    audio_size_mb = 0
+    if os.path.exists(audio_dir):
+        for f in os.listdir(audio_dir):
+            fp = os.path.join(audio_dir, f)
+            if os.path.isfile(fp):
+                audio_count += 1
+                audio_size_mb += os.path.getsize(fp) / (1024 * 1024)
+
+    # System info
+    process = psutil.Process()
+    memory_mb = process.memory_info().rss / (1024 * 1024)
+    cpu_percent = process.cpu_percent(interval=0.1)
+    uptime_seconds = (datetime.now() - datetime.fromtimestamp(process.create_time())).total_seconds()
+    uptime_hours = uptime_seconds / 3600
+
+    return {
+        "users": {
+            "total": user_count,
+            "active": user_count  # Could track activity later
+        },
+        "messages": {
+            "total": total_messages
+        },
+        "audio": {
+            "files": audio_count,
+            "size_mb": round(audio_size_mb, 2)
+        },
+        "system": {
+            "memory_mb": round(memory_mb, 2),
+            "cpu_percent": round(cpu_percent, 1),
+            "uptime_hours": round(uptime_hours, 2),
+            "python_version": __import__('sys').version.split()[0]
+        }
+    }
+
+
+@router.get("/system")
+async def get_system_info(_: bool = Depends(require_auth)):
+    """Get detailed system information."""
+    import platform
+    import psutil
+    from datetime import datetime
+
+    settings = get_settings()
+
+    # Disk usage for data directory
+    disk = psutil.disk_usage(settings.data_dir)
+
+    return {
+        "platform": platform.system(),
+        "platform_release": platform.release(),
+        "python_version": platform.python_version(),
+        "processor": platform.processor() or "Unknown",
+        "memory": {
+            "total_gb": round(psutil.virtual_memory().total / (1024**3), 2),
+            "available_gb": round(psutil.virtual_memory().available / (1024**3), 2),
+            "percent_used": psutil.virtual_memory().percent
+        },
+        "disk": {
+            "total_gb": round(disk.total / (1024**3), 2),
+            "free_gb": round(disk.free / (1024**3), 2),
+            "percent_used": round(disk.percent, 1)
+        },
+        "data_dir": settings.data_dir,
+        "llm_provider": settings.llm_provider,
+        "whisper_model": settings.whisper_model
+    }

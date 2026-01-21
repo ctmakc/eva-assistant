@@ -45,3 +45,6 @@ android/gradle/wrapper/gradle-wrapper.jar
 # Gradle
 gradle-wrapper.jar
 gradle-wrapper.properties
+
+# Claude Code
+.claude/

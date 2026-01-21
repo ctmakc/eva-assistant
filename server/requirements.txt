@@ -33,6 +33,9 @@ python-telegram-bot>=20.7
 # Scheduler
 apscheduler>=3.10.0
 
+# System monitoring
+psutil>=5.9.0
+
 # Gmail OAuth
 google-auth>=2.25.0
 google-auth-oauthlib>=1.2.0
