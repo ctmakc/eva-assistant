@@ -72,7 +72,8 @@ fun EvaApp() {
                 onStopPlayback = { viewModel.stopPlayback() },
                 onSendText = { viewModel.sendTextMessage(it) },
                 onSettingsClick = { navController.navigate("settings") },
-                onClearError = { viewModel.clearError() }
+                onClearError = { viewModel.clearError() },
+                onClearMessages = { viewModel.clearMessages() }
             )
         }
 

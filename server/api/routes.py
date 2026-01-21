@@ -261,7 +261,7 @@ async def integrations_status():
             telegram = get_telegram_integration()
             status["telegram"]["status"] = "running" if telegram._running else "stopped"
             status["telegram"]["owner_set"] = telegram.owner_chat_id is not None
-        except:
+        except Exception:
             status["telegram"]["status"] = "error"
 
     return status

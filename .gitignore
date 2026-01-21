@@ -29,3 +29,19 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Android
+*.apk
+*.aab
+*.jks
+*.keystore
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/gradle/wrapper/gradle-wrapper.jar
+.gradle/
+
+# Gradle
+gradle-wrapper.jar
+gradle-wrapper.properties

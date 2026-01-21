@@ -254,7 +254,7 @@ class LLMService:
             text = await self.llm.chat(system, [{"role": "user", "content": prompt}], max_tokens=150)
             emotion = self._detect_emotion(text)
             return text, emotion
-        except:
+        except Exception:
             return "Привет! Как ты там?", Emotion.FRIENDLY
 
 

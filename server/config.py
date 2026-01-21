@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     # Memory
     max_conversation_history: int = 20
     data_dir: str = "/app/data"
+    log_file: str = "/app/data/eva.log"
+    max_log_lines: int = 500
 
     # EVA personality
     eva_name: str = "EVA"

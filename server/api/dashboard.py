@@ -341,6 +341,11 @@ async def dashboard(request: Request):
         <a href="/docs" class="btn btn-secondary">Открыть Swagger UI</a>
     </div>
 
+    <div class="card">
+        <h2>📋 Логи</h2>
+        <a href="/dashboard/logs" class="btn btn-secondary">Просмотр логов</a>
+    </div>
+
     <div class="mt-2" style="text-align: center;">
         <a href="/logout" style="color: #888;">Выйти</a>
     </div>
@@ -412,9 +417,9 @@ async def dashboard_gmail(request: Request):
                 <input type="password" name="client_secret" required>
             </div>
             <div class="form-group">
-                <label>Redirect URI</label>
+                <label>Redirect URI (замени YOUR_SERVER на IP/домен сервера)</label>
                 <input type="text" name="redirect_uri" required
-                       value="http://194.61.52.176:8080/api/v1/gmail/callback">
+                       placeholder="http://YOUR_SERVER:8080/api/v1/gmail/callback">
             </div>
             <button type="submit">Продолжить</button>
         </form>
@@ -446,3 +451,79 @@ async def dashboard_gmail_submit(
 
     # Redirect to Google OAuth
     return RedirectResponse(url="/api/v1/gmail/auth", status_code=303)
+
+
+@router.get("/dashboard/logs", response_class=HTMLResponse)
+async def dashboard_logs(request: Request, level: str = None, lines: int = 100):
+    """Log viewer page."""
+    token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not token or not auth.verify_token(token):
+        return RedirectResponse(url="/login")
+
+    import os
+    from collections import deque
+
+    settings = get_settings()
+    log_file = settings.log_file
+    max_lines = min(lines, 500)
+
+    logs_html = ""
+    total_logs = 0
+
+    if os.path.exists(log_file):
+        try:
+            logs = deque(maxlen=max_lines)
+            with open(log_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if level and f" - {level.upper()} - " not in line:
+                        continue
+                    logs.append(line)
+
+            total_logs = len(logs)
+
+            for log_line in logs:
+                color = "#888"
+                if " - ERROR - " in log_line:
+                    color = "#ff6b6b"
+                elif " - WARNING - " in log_line:
+                    color = "#ffa500"
+                elif " - INFO - " in log_line:
+                    color = "#00d9ff"
+
+                escaped_line = log_line.replace("<", "&lt;").replace(">", "&gt;")
+                logs_html += f'<div style="color: {color}; margin: 2px 0; font-family: monospace; font-size: 0.85em; white-space: pre-wrap;">{escaped_line}</div>'
+
+        except Exception as e:
+            logs_html = f'<div style="color: #ff6b6b;">Error reading logs: {e}</div>'
+    else:
+        logs_html = '<div style="color: #888;">No logs yet</div>'
+
+    level_filter = level or ""
+    content = f'''
+    <div class="card">
+        <h2>📋 Логи ({total_logs} записей)</h2>
+
+        <div style="margin-bottom: 16px;">
+            <a href="/dashboard/logs" class="btn btn-secondary" style="margin-right: 8px;">Все</a>
+            <a href="/dashboard/logs?level=info" class="btn btn-secondary" style="margin-right: 8px;">INFO</a>
+            <a href="/dashboard/logs?level=warning" class="btn btn-secondary" style="margin-right: 8px;">WARNING</a>
+            <a href="/dashboard/logs?level=error" class="btn btn-secondary">ERROR</a>
+        </div>
+
+        <div style="background: #0a0a15; border-radius: 8px; padding: 16px; max-height: 500px; overflow-y: auto;">
+            {logs_html}
+        </div>
+
+        <div class="mt-2">
+            <a href="/dashboard">← Назад</a>
+            <a href="/dashboard/logs?lines=500" style="margin-left: 16px;">Показать 500</a>
+        </div>
+    </div>
+    '''
+
+    return HTMLResponse(base_template("Logs", content, token))

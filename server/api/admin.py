@@ -201,13 +201,54 @@ async def delete_setting(key: str, _: bool = Depends(require_auth)):
 
 
 @router.get("/logs")
-async def get_recent_logs(_: bool = Depends(require_auth)):
-    """Get recent application logs (last 100 lines)."""
-    # This would need log file access - for now return placeholder
-    return {
-        "message": "Log viewing not implemented yet",
-        "logs": []
-    }
+async def get_recent_logs(
+    lines: int = 100,
+    level: str = None,
+    _: bool = Depends(require_auth)
+):
+    """
+    Get recent application logs.
+
+    - lines: Number of lines to return (default 100, max 500)
+    - level: Filter by log level (INFO, WARNING, ERROR)
+    """
+    import os
+    from collections import deque
+
+    settings = get_settings()
+    log_file = settings.log_file
+    max_lines = min(lines, settings.max_log_lines)
+
+    if not os.path.exists(log_file):
+        return {"logs": [], "total": 0, "message": "No log file yet"}
+
+    try:
+        logs = deque(maxlen=max_lines)
+
+        with open(log_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Filter by level if specified
+                if level:
+                    if f" - {level.upper()} - " not in line:
+                        continue
+
+                logs.append(line)
+
+        log_list = list(logs)
+
+        return {
+            "logs": log_list,
+            "total": len(log_list),
+            "log_file": log_file
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to read logs: {e}")
+        return {"logs": [], "total": 0, "error": str(e)}
 
 
 @router.post("/restart")

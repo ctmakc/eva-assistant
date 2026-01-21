@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+import logging.handlers
+import os
 
 from config import get_settings, get_api_key, get_llm_provider
 from api.routes import router
@@ -13,9 +15,26 @@ from api.gmail_routes import router as gmail_router
 from api.dashboard import router as dashboard_router
 
 # Setup logging
+from config import get_settings
+_settings = get_settings()
+
+# Ensure log directory exists
+os.makedirs(os.path.dirname(_settings.log_file), exist_ok=True)
+
+# Create log handlers
+log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format=log_format,
+    handlers=[
+        logging.StreamHandler(),  # Console output
+        logging.handlers.RotatingFileHandler(
+            _settings.log_file,
+            maxBytes=5*1024*1024,  # 5MB
+            backupCount=3,
+            encoding='utf-8'
+        )
+    ]
 )
 logger = logging.getLogger("eva")
 
@@ -80,7 +99,7 @@ async def setup_scheduler():
                 telegram = get_telegram_integration()
                 if telegram.owner_chat_id:
                     await telegram.send_to_owner(message)
-            except:
+            except Exception:
                 pass  # Telegram might not be configured
 
         scheduler.add_notification_handler(notify_handler)
@@ -144,15 +163,15 @@ async def lifespan(app: FastAPI):
         from integrations.telegram import get_telegram_integration
         telegram = get_telegram_integration()
         await telegram.stop()
-    except:
-        pass
+    except Exception:
+        pass  # Telegram might not have been initialized
 
     # Stop scheduler
     try:
         from proactive.scheduler import get_scheduler
         get_scheduler().stop()
-    except:
-        pass
+    except Exception:
+        pass  # Scheduler might not have been initialized
 
 
 # Create FastAPI app
@@ -163,10 +182,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# Rate limiting middleware
+from middleware.rate_limit import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware)
+
+# CORS middleware (more restrictive for production)
+# In production, replace ["*"] with your actual domains
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # TODO: Restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

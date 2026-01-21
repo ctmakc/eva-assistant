@@ -71,16 +71,22 @@ class ProactiveScheduler:
             try:
                 parts = profile.wake_time.split(":")
                 wake_hour, wake_minute = int(parts[0]), int(parts[1])
-            except:
+            except ValueError:
                 pass
 
-        # Morning briefing - 5 minutes after wake time
+        # Morning briefing - 5 minutes after wake time (handle minute overflow)
+        morning_minute = wake_minute + 5
+        morning_hour = wake_hour
+        if morning_minute >= 60:
+            morning_minute -= 60
+            morning_hour = (morning_hour + 1) % 24
+
         self.add_job(
             job_id=f"{user_id}_morning",
             func=self._morning_briefing,
             args=[user_id],
-            hour=wake_hour,
-            minute=wake_minute + 5
+            hour=morning_hour,
+            minute=morning_minute
         )
 
         # Break reminders - every 90 minutes during work hours
@@ -116,8 +122,8 @@ class ProactiveScheduler:
         # Remove existing job with same ID
         try:
             self.scheduler.remove_job(job_id)
-        except:
-            pass
+        except Exception:
+            pass  # Job doesn't exist, that's fine
 
         trigger = CronTrigger(
             hour=hour,
