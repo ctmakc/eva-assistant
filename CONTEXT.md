@@ -4,36 +4,62 @@
 
 ## Текущий статус
 
-**Фаза:** Backend завершён
+**Фаза:** Backend 100% завершён ✅
 **Следующее:** Android клиент
 
 ## Что сделано
 
-### Backend (100%)
-- [x] FastAPI сервер с аутентификацией
+### Core
+- [x] FastAPI сервер
 - [x] STT (Faster Whisper)
 - [x] TTS (Edge-TTS)
-- [x] LLM (Gemini/Claude переключаемые)
+- [x] LLM (Gemini/Claude)
+
+### Personality
 - [x] Memory система
 - [x] User Profile + Onboarding
+- [x] Adaptive Engine (учится что работает)
+
+### Integrations
 - [x] Telegram бот
-- [x] Credential Vault
-- [x] Proactive Scheduler
-- [x] Adaptive Engine
-- [x] **Admin API** — управление ключами через API
-- [x] **JWT Auth** — защита эндпоинтов
+- [x] Gmail OAuth (чтение/отправка писем)
+- [x] Credential Vault (шифрованное хранилище)
+
+### Proactive
+- [x] Scheduler (утренние приветствия, напоминания)
+
+### Security & Admin
+- [x] JWT аутентификация
+- [x] Admin API
+- [x] **Web Dashboard** (!)
 
 ## Деплой
 
-**Сервер:** 194.61.52.176:8080
+**URL:** http://194.61.52.176:8080/
 **GitHub:** https://github.com/ctmakc/eva-assistant
 
-## Первый запуск
+### Portainer Environment:
+```
+API_SECRET_KEY=random-32-char-string
+VAULT_MASTER_KEY=another-random-string
+```
 
-1. Задеплоить через Portainer (без API ключей в env)
-2. Открыть `/docs`
-3. Вызвать `POST /api/v1/admin/setup` с паролем
-4. Через админ-эндпоинты добавить API ключи
+### Первый запуск:
+1. Открой http://194.61.52.176:8080/
+2. Создай пароль админа
+3. Добавь Gemini API Key
+4. (Опционально) Подключи Gmail, Telegram
+
+## Endpoints
+
+| URL | Описание |
+|-----|----------|
+| `/` | Web Dashboard |
+| `/docs` | Swagger API docs |
+| `/api/v1/health` | Health check |
+| `/api/v1/chat/message` | Текстовый чат |
+| `/api/v1/voice/process` | Голосовой чат |
+| `/api/v1/gmail/summary` | Сводка почты |
 
 ## Восстановление контекста
 
