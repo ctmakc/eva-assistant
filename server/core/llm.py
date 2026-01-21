@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 from datetime import datetime
 
-from config import get_settings
+from config import get_settings, get_api_key, get_llm_provider
 from schemas.models import Message, UserProfile, Emotion
 
 
@@ -24,10 +24,10 @@ class BaseLLM(ABC):
 class GeminiLLM(BaseLLM):
     """Google Gemini implementation (free tier)."""
 
-    def __init__(self):
+    def __init__(self, api_key: str):
         import google.generativeai as genai
         settings = get_settings()
-        genai.configure(api_key=settings.gemini_api_key)
+        genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(settings.gemini_model)
 
     async def chat(
@@ -36,7 +36,6 @@ class GeminiLLM(BaseLLM):
         messages: List[dict],
         max_tokens: int = 500
     ) -> str:
-        # Gemini uses a different format - combine system + messages
         full_prompt = f"{system_prompt}\n\n"
 
         for msg in messages:
@@ -59,10 +58,10 @@ class GeminiLLM(BaseLLM):
 class ClaudeLLM(BaseLLM):
     """Anthropic Claude implementation."""
 
-    def __init__(self):
+    def __init__(self, api_key: str):
         import anthropic
         settings = get_settings()
-        self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self.client = anthropic.Anthropic(api_key=api_key)
         self.model = settings.anthropic_model
 
     async def chat(
@@ -86,13 +85,27 @@ class LLMService:
     def __init__(self):
         settings = get_settings()
         self.eva_name = settings.eva_name
-        self.provider_name = settings.llm_provider
+        self.llm: Optional[BaseLLM] = None
+        self.provider_name: Optional[str] = None
+        self._initialize()
 
-        # Initialize the appropriate provider
-        if settings.llm_provider == "gemini":
-            self.llm = GeminiLLM()
+    def _initialize(self):
+        """Initialize the LLM provider."""
+        provider = get_llm_provider()
+        self.provider_name = provider
+
+        if provider == "gemini":
+            api_key = get_api_key("gemini")
+            if api_key:
+                self.llm = GeminiLLM(api_key)
+            else:
+                raise ValueError("Gemini API key not configured. Use Admin API to set it.")
         else:
-            self.llm = ClaudeLLM()
+            api_key = get_api_key("anthropic")
+            if api_key:
+                self.llm = ClaudeLLM(api_key)
+            else:
+                raise ValueError("Anthropic API key not configured. Use Admin API to set it.")
 
     def _build_system_prompt(self, profile: UserProfile, context: dict = None) -> str:
         """Build EVA's system prompt with personality and context."""
@@ -103,7 +116,6 @@ class LLMService:
         hour = now.hour
         time_of_day = "утро" if 5 <= hour < 12 else "день" if 12 <= hour < 17 else "вечер" if 17 <= hour < 22 else "ночь"
 
-        # Onboarding context
         onboarding_context = ""
         if profile.onboarding_stage.value in ["not_started", "greeting", "name", "preferences", "schedule", "motivation_style"]:
             onboarding_context = """
@@ -174,9 +186,11 @@ class LLMService:
     ) -> tuple[str, Emotion]:
         """Generate response to user message."""
 
+        if not self.llm:
+            return "Извини, у меня пока не настроен доступ к AI. Попроси админа добавить API ключ.", Emotion.CONCERNED
+
         system_prompt = self._build_system_prompt(profile, context)
 
-        # Build messages list
         messages = []
         for msg in conversation_history[-15:]:
             messages.append({
@@ -189,13 +203,12 @@ class LLMService:
             "content": user_message
         })
 
-        # Call LLM
-        response_text = await self.llm.chat(system_prompt, messages)
-
-        # Detect emotion
-        emotion = self._detect_emotion(response_text)
-
-        return response_text, emotion
+        try:
+            response_text = await self.llm.chat(system_prompt, messages)
+            emotion = self._detect_emotion(response_text)
+            return response_text, emotion
+        except Exception as e:
+            return f"Ой, что-то пошло не так: {str(e)}", Emotion.CONCERNED
 
     def _detect_emotion(self, text: str) -> Emotion:
         """Simple emotion detection from response text."""
@@ -222,6 +235,9 @@ class LLMService:
     ) -> tuple[str, Emotion]:
         """Generate proactive message (EVA initiates)."""
 
+        if not self.llm:
+            return "Привет! Как дела?", Emotion.FRIENDLY
+
         user_name = profile.preferred_name or profile.name or "эй"
 
         prompts = {
@@ -234,10 +250,12 @@ class LLMService:
         prompt = prompts.get(trigger, prompts["checkin"])
         system = "Ты EVA — тёплая, дружелюбная боевая подруга. Отвечай коротко и от души."
 
-        text = await self.llm.chat(system, [{"role": "user", "content": prompt}], max_tokens=150)
-        emotion = self._detect_emotion(text)
-
-        return text, emotion
+        try:
+            text = await self.llm.chat(system, [{"role": "user", "content": prompt}], max_tokens=150)
+            emotion = self._detect_emotion(text)
+            return text, emotion
+        except:
+            return "Привет! Как ты там?", Emotion.FRIENDLY
 
 
 # Singleton
@@ -249,3 +267,9 @@ def get_llm_service() -> LLMService:
     if _llm_service is None:
         _llm_service = LLMService()
     return _llm_service
+
+
+def reset_llm_service():
+    """Reset LLM service (used after config change)."""
+    global _llm_service
+    _llm_service = None

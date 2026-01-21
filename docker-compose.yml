@@ -7,12 +7,15 @@ services:
     ports:
       - "8080:8000"
     environment:
+      # Required: Security keys (change these!)
+      - API_SECRET_KEY=${API_SECRET_KEY:-eva-change-me-32-chars-minimum}
+      - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:-vault-change-me-too}
+      # Optional: Initial admin password (can set up via API instead)
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      # Optional: LLM provider default (can configure via Admin API)
       - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - API_SECRET_KEY=${API_SECRET_KEY:-eva-secret-key}
-      - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:-vault-key}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      # API keys are now configured via Admin API, not env
+      # This is more secure - keys stored encrypted in vault
     volumes:
       - eva-data:/app/data
     restart: unless-stopped

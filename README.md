@@ -4,87 +4,91 @@
 
 ## Quick Start
 
-### 1. Настройка окружения
+### 1. Деплой через Portainer
 
-```bash
-cd eva-assistant
-cp .env.example .env
-# Отредактируй .env, добавь ANTHROPIC_API_KEY
+**Stack → Add stack → Repository**
+- URL: `https://github.com/ctmakc/eva-assistant`
+- Compose path: `docker-compose.yml`
+
+**Environment variables:**
+```
+API_SECRET_KEY=your-random-secret-32-chars
+VAULT_MASTER_KEY=another-random-secret
 ```
 
-### 2. Запуск через Docker
+### 2. Первоначальная настройка
 
+После деплоя открой: `http://YOUR_SERVER:8080/docs`
+
+**Шаг 1: Создай админа**
 ```bash
-docker-compose up -d --build
+curl -X POST http://YOUR_SERVER:8080/api/v1/admin/setup \
+  -F "password=your-admin-password"
+```
+
+Сохрани полученный `token`!
+
+**Шаг 2: Добавь API ключ**
+```bash
+curl -X POST http://YOUR_SERVER:8080/api/v1/admin/settings \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "key=gemini_api_key" \
+  -F "value=YOUR_GEMINI_API_KEY"
 ```
 
 ### 3. Проверка
 
 ```bash
-curl http://localhost:8000/api/v1/health
+curl http://YOUR_SERVER:8080/api/v1/health
 ```
 
-Ожидаемый ответ:
-```json
-{"status":"ok","version":"1.0.0","eva_status":"ready"}
+```bash
+curl -X POST http://YOUR_SERVER:8080/api/v1/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Привет!", "user_id": "maxim"}'
 ```
-
-### 4. API документация
-
-Открой в браузере: http://localhost:8000/docs
 
 ## API Endpoints
 
+### Core
 | Endpoint | Метод | Описание |
 |----------|-------|----------|
 | `/api/v1/health` | GET | Статус сервера |
-| `/api/v1/voice/process` | POST | Голос → ответ (audio file) |
+| `/api/v1/voice/process` | POST | Голос → ответ |
 | `/api/v1/chat/message` | POST | Текст → ответ |
-| `/api/v1/audio/{filename}` | GET | Получить аудиофайл |
-| `/api/v1/user/profile` | GET | Профиль пользователя |
-| `/api/v1/conversation/{user_id}/history` | GET | История диалога |
-| `/api/v1/memory/{user_id}` | DELETE | Очистить память |
 
-## Тестирование голоса
+### Admin (требует токен)
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/v1/admin/status` | GET | Статус админа |
+| `/api/v1/admin/setup` | POST | Первичная настройка |
+| `/api/v1/admin/login` | POST | Получить токен |
+| `/api/v1/admin/settings` | GET | Текущие настройки |
+| `/api/v1/admin/settings` | POST | Обновить настройку |
 
-```bash
-# Записать аудио (например, voice.wav) и отправить:
-curl -X POST http://localhost:8000/api/v1/voice/process \
-  -F "audio=@voice.wav" \
-  -F "user_id=maxim"
-```
+### Integrations
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/v1/integrations/status` | GET | Статус интеграций |
+| `/api/v1/integrations/credentials` | POST | Сохранить креды |
 
-## Тестирование текста
+## Поддерживаемые API ключи
 
-```bash
-curl -X POST http://localhost:8000/api/v1/chat/message \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Привет, как дела?", "user_id": "maxim"}'
-```
+Добавляются через `POST /api/v1/admin/settings`:
 
-## Структура проекта
+- `gemini_api_key` - Google Gemini (бесплатно)
+- `anthropic_api_key` - Claude (платно)
+- `telegram_bot_token` - Telegram бот
 
-```
-eva-assistant/
-├── server/
-│   ├── main.py           # FastAPI приложение
-│   ├── config.py         # Настройки
-│   ├── api/routes.py     # API endpoints
-│   ├── core/             # STT, TTS, LLM
-│   ├── personality/      # Memory, Profile
-│   └── data/             # Данные пользователей
-├── docker-compose.yml
-└── .env
-```
+## Безопасность
+
+- API ключи хранятся в зашифрованном vault
+- Admin API защищён JWT токенами
+- Пароли хешируются bcrypt
+- Никакие секреты не хранятся в git
 
 ## Логи
 
 ```bash
-docker-compose logs -f eva-server
-```
-
-## Остановка
-
-```bash
-docker-compose down
+docker logs eva-assistant -f
 ```

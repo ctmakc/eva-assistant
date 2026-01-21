@@ -6,8 +6,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from config import get_settings
+from config import get_settings, get_api_key
 from api.routes import router
+from api.admin import router as admin_router
 
 # Setup logging
 logging.basicConfig(
@@ -114,8 +115,12 @@ async def lifespan(app: FastAPI):
         logger.info("✓ TTS ready")
 
         logger.info(f"Initializing LLM ({settings.llm_provider})...")
-        get_llm_service()
-        logger.info("✓ LLM ready")
+        try:
+            get_llm_service()
+            logger.info("✓ LLM ready")
+        except ValueError as e:
+            logger.warning(f"⚠ LLM not configured: {e}")
+            logger.warning("  Use Admin API to configure API keys")
 
     except Exception as e:
         logger.error(f"Error during core initialization: {e}")
@@ -167,6 +172,7 @@ app.add_middleware(
 
 # Include routes
 app.include_router(router)
+app.include_router(admin_router)
 
 
 @app.get("/")

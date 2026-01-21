@@ -24,6 +24,8 @@ pydub>=0.25.0
 
 # Security
 cryptography>=42.0.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
 
 # Telegram
 python-telegram-bot>=20.7
