@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- E letter stylized -->
+    <path
+        android:fillColor="#00D9FF"
+        android:pathData="M30,30 L78,30 L78,38 L38,38 L38,50 L70,50 L70,58 L38,58 L38,70 L78,70 L78,78 L30,78 Z"/>
+
+    <!-- Small glow effect -->
+    <path
+        android:fillColor="#00A8CC"
+        android:pathData="M54,82 C62,82 68,88 68,96 C68,88 74,82 82,82 C74,82 68,76 68,68 C68,76 62,82 54,82 Z"/>
+</vector>

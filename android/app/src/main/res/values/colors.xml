@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="eva_primary">#00D9FF</color>
+    <color name="eva_secondary">#00A8CC</color>
+    <color name="eva_background">#1A1A2E</color>
+    <color name="eva_surface">#16213E</color>
+    <color name="eva_text">#E0E0E0</color>
+    <color name="eva_text_secondary">#888888</color>
+</resources>
