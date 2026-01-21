@@ -6,9 +6,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from config import get_settings, get_api_key
+from config import get_settings, get_api_key, get_llm_provider
 from api.routes import router
 from api.admin import router as admin_router
+from api.gmail_routes import router as gmail_router
+from api.dashboard import router as dashboard_router
 
 # Setup logging
 logging.basicConfig(
@@ -173,17 +175,21 @@ app.add_middleware(
 # Include routes
 app.include_router(router)
 app.include_router(admin_router)
+app.include_router(gmail_router)
+app.include_router(dashboard_router)
 
 
-@app.get("/")
-async def root():
+@app.get("/api")
+async def api_info():
+    """API info endpoint."""
     settings = get_settings()
     return {
         "name": "EVA Personal Assistant",
         "version": "1.0.0",
         "status": "running",
-        "llm_provider": settings.llm_provider,
-        "docs": "/docs"
+        "llm_provider": get_llm_provider(),
+        "docs": "/docs",
+        "dashboard": "/"
     }
 
 
