@@ -41,6 +41,14 @@ class EvaViewModel(application: Application) : AndroidViewModel(application) {
     val isPlaying: StateFlow<Boolean> = audioPlayer.isPlaying
 
     init {
+        // Load saved messages on startup
+        viewModelScope.launch {
+            val savedMessages = settingsManager.loadMessages()
+            if (savedMessages.isNotEmpty()) {
+                _messages.value = savedMessages
+            }
+        }
+
         viewModelScope.launch {
             settingsManager.serverUrl.collect { url ->
                 _serverUrl.value = url
@@ -50,6 +58,15 @@ class EvaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsManager.userId.collect { id ->
                 _userId.value = id
+            }
+        }
+
+        // Auto-save messages when they change
+        viewModelScope.launch {
+            messages.collect { msgs ->
+                if (msgs.isNotEmpty()) {
+                    settingsManager.saveMessages(msgs)
+                }
             }
         }
     }
@@ -205,6 +222,9 @@ class EvaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearMessages() {
         _messages.value = emptyList()
+        viewModelScope.launch {
+            settingsManager.clearMessages()
+        }
     }
 
     override fun onCleared() {

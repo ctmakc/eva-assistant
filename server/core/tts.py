@@ -19,7 +19,20 @@ class TTSService:
         os.makedirs(self.audio_dir, exist_ok=True)
 
     def _get_voice(self, language: str) -> str:
-        """Get appropriate voice for language."""
+        """Get appropriate voice for language, checking vault for custom settings."""
+        # Check vault for custom voice settings
+        try:
+            from integrations.vault import get_vault
+            vault = get_vault()
+            voice_settings = vault.get("voice_settings")
+            if voice_settings:
+                if language in ["ru", "russian"]:
+                    return voice_settings.get("voice_ru", self.voice_ru)
+                return voice_settings.get("voice_en", self.voice_en)
+        except Exception:
+            pass
+
+        # Fallback to default
         if language in ["ru", "russian"]:
             return self.voice_ru
         return self.voice_en

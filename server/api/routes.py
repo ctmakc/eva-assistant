@@ -112,6 +112,43 @@ async def chat_message(request: ChatMessageRequest):
     Process text message and return text + audio response.
     """
     try:
+        # Check for quick commands first
+        from core.commands import get_command_parser, execute_command
+        from schemas.models import Emotion
+
+        parser = get_command_parser()
+        cmd_result = parser.parse(request.text, request.user_id)
+
+        if cmd_result.is_command and not cmd_result.execute:
+            # Execute command and return response without LLM
+            execute_command(cmd_result)
+
+            # Generate audio for command response
+            tts = get_tts_service()
+            lang = request.language.value
+            if lang == "auto":
+                cyrillic_count = sum(1 for c in cmd_result.response if '\u0400' <= c <= '\u04FF')
+                lang = "ru" if cyrillic_count > len(cmd_result.response) * 0.3 else "en"
+
+            audio_path = await tts.synthesize_with_emotion(
+                text=cmd_result.response,
+                language=lang,
+                emotion="friendly"
+            )
+            audio_url = tts.get_audio_url(audio_path)
+
+            # Save to memory
+            memory_manager = get_memory_manager()
+            memory_manager.add_message(request.user_id, "user", request.text, Language(lang))
+            memory_manager.add_message(request.user_id, "assistant", cmd_result.response)
+
+            return ChatMessageResponse(
+                success=True,
+                response_text=cmd_result.response,
+                response_audio_url=audio_url,
+                emotion=Emotion.FRIENDLY
+            )
+
         # Get user profile and history
         profile_manager = get_profile_manager()
         memory_manager = get_memory_manager()
@@ -234,6 +271,72 @@ async def delete_user(user_id: str):
     memory_manager.clear_history(user_id)
 
     return {"status": "ok", "message": f"User {user_id} deleted"}
+
+
+@router.get("/conversation/{user_id}/export")
+async def export_conversation(user_id: str, format: str = "json"):
+    """
+    Export conversation history.
+
+    Formats:
+    - json: Full JSON export with timestamps
+    - text: Human-readable text format
+    - markdown: Markdown formatted
+    """
+    from fastapi.responses import PlainTextResponse
+
+    memory_manager = get_memory_manager()
+    messages = memory_manager.get_recent_messages(user_id, limit=1000)
+
+    if not messages:
+        raise HTTPException(status_code=404, detail="No conversation found")
+
+    if format == "json":
+        return {
+            "user_id": user_id,
+            "exported_at": datetime.now().isoformat() if 'datetime' in dir() else __import__('datetime').datetime.now().isoformat(),
+            "message_count": len(messages),
+            "messages": [
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat(),
+                    "language": msg.language.value if msg.language else None
+                }
+                for msg in messages
+            ]
+        }
+
+    elif format == "text":
+        from datetime import datetime as dt
+        lines = [f"EVA Conversation Export - {user_id}", f"Exported: {dt.now().strftime('%Y-%m-%d %H:%M')}", "=" * 50, ""]
+
+        for msg in messages:
+            timestamp = msg.timestamp.strftime("%Y-%m-%d %H:%M")
+            speaker = "You" if msg.role == "user" else "EVA"
+            lines.append(f"[{timestamp}] {speaker}:")
+            lines.append(msg.content)
+            lines.append("")
+
+        return PlainTextResponse("\n".join(lines), media_type="text/plain")
+
+    elif format == "markdown":
+        from datetime import datetime as dt
+        lines = [f"# EVA Conversation", f"**User:** {user_id}", f"**Exported:** {dt.now().strftime('%Y-%m-%d %H:%M')}", "", "---", ""]
+
+        for msg in messages:
+            timestamp = msg.timestamp.strftime("%H:%M")
+            if msg.role == "user":
+                lines.append(f"**You** _{timestamp}_")
+            else:
+                lines.append(f"**EVA** _{timestamp}_")
+            lines.append(f"> {msg.content}")
+            lines.append("")
+
+        return PlainTextResponse("\n".join(lines), media_type="text/markdown")
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid format. Use: json, text, markdown")
 
 
 # ============== Integrations ==============

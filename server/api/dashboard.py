@@ -342,6 +342,31 @@ async def dashboard(request: Request):
     </div>
 
     <div class="card">
+        <h2>🎤 Голос EVA</h2>
+        <form method="POST" action="/dashboard/voice">
+            <div class="form-group">
+                <label>Русский голос</label>
+                <select name="voice_ru" style="width: 100%; padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.2);">
+                    <option value="ru-RU-SvetlanaNeural" {"selected" if settings.tts_voice_ru == "ru-RU-SvetlanaNeural" else ""}>Светлана (женский, мягкий)</option>
+                    <option value="ru-RU-DariyaNeural" {"selected" if settings.tts_voice_ru == "ru-RU-DariyaNeural" else ""}>Дария (женский, тёплый)</option>
+                    <option value="ru-RU-DmitryNeural" {"selected" if settings.tts_voice_ru == "ru-RU-DmitryNeural" else ""}>Дмитрий (мужской)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Английский голос</label>
+                <select name="voice_en" style="width: 100%; padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.2);">
+                    <option value="en-US-AriaNeural" {"selected" if settings.tts_voice_en == "en-US-AriaNeural" else ""}>Aria (женский, дружелюбный)</option>
+                    <option value="en-US-JennyNeural" {"selected" if settings.tts_voice_en == "en-US-JennyNeural" else ""}>Jenny (женский, нейтральный)</option>
+                    <option value="en-US-SaraNeural" {"selected" if settings.tts_voice_en == "en-US-SaraNeural" else ""}>Sara (женский, мягкий)</option>
+                    <option value="en-GB-SoniaNeural" {"selected" if settings.tts_voice_en == "en-GB-SoniaNeural" else ""}>Sonia (британский)</option>
+                    <option value="en-US-GuyNeural" {"selected" if settings.tts_voice_en == "en-US-GuyNeural" else ""}>Guy (мужской)</option>
+                </select>
+            </div>
+            <button type="submit">Сохранить голос</button>
+        </form>
+    </div>
+
+    <div class="card">
         <h2>📋 Логи</h2>
         <a href="/dashboard/logs" class="btn btn-secondary">Просмотр логов</a>
     </div>
@@ -451,6 +476,28 @@ async def dashboard_gmail_submit(
 
     # Redirect to Google OAuth
     return RedirectResponse(url="/api/v1/gmail/auth", status_code=303)
+
+
+@router.post("/dashboard/voice")
+async def dashboard_voice_submit(
+    request: Request,
+    voice_ru: str = Form(...),
+    voice_en: str = Form(...)
+):
+    """Save voice settings."""
+    token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not token or not auth.verify_token(token):
+        return RedirectResponse(url="/login", status_code=303)
+
+    vault = get_vault()
+    vault.store("voice_settings", {
+        "voice_ru": voice_ru,
+        "voice_en": voice_en
+    })
+
+    return RedirectResponse(url="/dashboard?voice_saved=1", status_code=303)
 
 
 @router.get("/dashboard/logs", response_class=HTMLResponse)
