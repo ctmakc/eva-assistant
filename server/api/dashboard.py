@@ -291,6 +291,10 @@ async def dashboard(request: Request):
     gmail = get_gmail_integration()
     gmail_ok = gmail.is_authenticated
 
+    from integrations.calendar import get_calendar_integration
+    calendar = get_calendar_integration()
+    calendar_ok = calendar.is_authenticated
+
     # Get stats
     import os
     import json
@@ -374,6 +378,15 @@ async def dashboard(request: Request):
         <div class="mt-2">
             {"<a href='/api/v1/gmail/summary' class='btn btn-secondary'>Проверить почту</a>" if gmail_ok else "<a href='/dashboard/gmail' class='btn'>Подключить Gmail</a>"}
         </div>
+    </div>
+
+    <div class="card">
+        <h2>📅 Google Calendar</h2>
+        {"<span class='status status-ok'>Подключен</span>" if calendar_ok else "<span class='status status-warn'>Не подключен</span>"}
+        <div class="mt-2">
+            {"<a href='/api/v1/calendar/today' class='btn btn-secondary' target='_blank'>Сегодня</a> <a href='/api/v1/calendar/upcoming' class='btn btn-secondary' target='_blank'>На неделю</a>" if calendar_ok else "<a href='/dashboard/calendar' class='btn'>Подключить Calendar</a>"}
+        </div>
+        <p class="text-muted mt-2">Команды: "что у меня сегодня", "мой календарь"</p>
     </div>
 
     <div class="card">
@@ -515,6 +528,80 @@ async def dashboard_gmail(request: Request):
     '''
 
     return HTMLResponse(base_template("Gmail Setup", content))
+
+
+@router.get("/dashboard/calendar", response_class=HTMLResponse)
+async def dashboard_calendar(request: Request):
+    """Calendar configuration page."""
+    token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not token or not auth.verify_token(token):
+        return RedirectResponse(url="/login")
+
+    from integrations.calendar import get_calendar_integration
+    calendar = get_calendar_integration()
+
+    if calendar.is_authenticated:
+        return RedirectResponse(url="/dashboard")
+
+    content = '''
+    <div class="card">
+        <h2>📅 Подключение Google Calendar</h2>
+        <p style="margin-bottom: 20px; color: #888;">
+            Для подключения календаря нужны OAuth credentials из Google Cloud Console
+        </p>
+        <ol style="margin-bottom: 20px; line-height: 1.8; color: #aaa;">
+            <li>Перейди на <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a></li>
+            <li>Используй тот же проект, что и для Gmail (или создай новый)</li>
+            <li>Включи Google Calendar API в разделе APIs & Services</li>
+            <li>Используй те же OAuth credentials или создай новые</li>
+            <li>Добавь Redirect URI: <code style="background:#000;padding:2px 6px;">http://YOUR_SERVER:8080/api/v1/calendar/callback</code></li>
+        </ol>
+        <form method="POST" action="/dashboard/calendar">
+            <div class="form-group">
+                <label>Client ID</label>
+                <input type="text" name="client_id" required placeholder="xxx.apps.googleusercontent.com">
+            </div>
+            <div class="form-group">
+                <label>Client Secret</label>
+                <input type="password" name="client_secret" required>
+            </div>
+            <div class="form-group">
+                <label>Redirect URI</label>
+                <input type="text" name="redirect_uri" required
+                       placeholder="http://YOUR_SERVER:8080/api/v1/calendar/callback">
+            </div>
+            <button type="submit">Продолжить</button>
+        </form>
+        <p class="mt-2"><a href="/dashboard">← Назад</a></p>
+    </div>
+    '''
+
+    return HTMLResponse(base_template("Calendar Setup", content))
+
+
+@router.post("/dashboard/calendar")
+async def dashboard_calendar_submit(
+    request: Request,
+    client_id: str = Form(...),
+    client_secret: str = Form(...),
+    redirect_uri: str = Form(...)
+):
+    """Configure Calendar and redirect to auth."""
+    token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not token or not auth.verify_token(token):
+        return RedirectResponse(url="/login", status_code=303)
+
+    from integrations.calendar import get_calendar_integration
+    calendar = get_calendar_integration()
+
+    calendar.configure_oauth(client_id, client_secret, redirect_uri)
+
+    # Redirect to Google OAuth
+    return RedirectResponse(url="/api/v1/calendar/auth", status_code=303)
 
 
 @router.post("/dashboard/gmail")

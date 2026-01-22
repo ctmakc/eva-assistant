@@ -12,6 +12,7 @@ from config import get_settings, get_api_key, get_llm_provider
 from api.routes import router
 from api.admin import router as admin_router
 from api.gmail_routes import router as gmail_router
+from api.calendar_routes import router as calendar_router
 from api.dashboard import router as dashboard_router
 
 # Setup logging
@@ -244,6 +245,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(admin_router)
 app.include_router(gmail_router)
+app.include_router(calendar_router)
 app.include_router(dashboard_router)
 
 

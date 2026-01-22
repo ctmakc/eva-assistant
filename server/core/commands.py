@@ -153,6 +153,58 @@ class CommandParser:
         re.IGNORECASE
     )
 
+    # Calendar patterns
+    CALENDAR_TODAY = re.compile(
+        r'(?:что\s+)?(?:у\s+меня\s+)?(?:сегодня|today)(?:\s+в\s+календаре)?|'
+        r'(?:мои\s+)?(?:события|встречи|планы)\s+(?:на\s+)?сегодня|'
+        r'(?:расписание|schedule)\s+(?:на\s+)?(?:сегодня|today)',
+        re.IGNORECASE
+    )
+    CALENDAR_UPCOMING = re.compile(
+        r'(?:что\s+)?(?:у\s+меня\s+)?(?:на\s+неделе|на\s+этой\s+неделе|upcoming)|'
+        r'(?:мой\s+)?(?:календарь|calendar)|'
+        r'(?:ближайшие\s+)?(?:события|встречи|events)',
+        re.IGNORECASE
+    )
+    CALENDAR_ADD = re.compile(
+        r'(?:добавь|создай|запланируй)\s+(?:встречу|событие|event)[:\s]+(.+)',
+        re.IGNORECASE
+    )
+
+    # Briefing patterns
+    BRIEFING_PATTERN = re.compile(
+        r'(?:утренний\s+)?(?:брифинг|briefing)|'
+        r'(?:доброе\s+утро|good\s+morning)(?:\s+eva)?|'
+        r'что\s+(?:нового|у\s+меня\s+нового)|'
+        r'(?:дай\s+)?(?:сводку|summary|обзор)|'
+        r'расскажи\s+(?:что\s+)?(?:на\s+)?сегодня',
+        re.IGNORECASE
+    )
+
+    # Habit patterns
+    HABIT_ADD = re.compile(
+        r'(?:новая\s+)?привычка[:\s]+(.+)|'
+        r'(?:отслеживай|track)\s+(?:привычку\s+)?(.+)|'
+        r'(?:add|new)\s+habit[:\s]+(.+)',
+        re.IGNORECASE
+    )
+    HABIT_LIST = re.compile(
+        r'(?:мои\s+)?привычки|(?:список\s+)?привычек|'
+        r'(?:my\s+)?habits|habit\s+list',
+        re.IGNORECASE
+    )
+    HABIT_DONE = re.compile(
+        r'(?:привычка\s+)?(?:выполнена?|сделана?|done)[:\s]+(.+)|'
+        r'(?:выполнил|сделал)\s+(.+)|'
+        r'(?:completed?|did)\s+(.+)',
+        re.IGNORECASE
+    )
+    HABIT_STATUS = re.compile(
+        r'(?:статус\s+)?привыч(?:ки|ек)\s+(?:на\s+)?сегодня|'
+        r'(?:today\'?s?\s+)?habit(?:s)?\s+(?:status|progress)',
+        re.IGNORECASE
+    )
+
     def parse(self, text: str, user_id: str = "default") -> CommandResult:
         """
         Parse message for commands.
@@ -437,6 +489,80 @@ class CommandParser:
                 execute=False
             )
 
+        # Check for calendar - today
+        if self.CALENDAR_TODAY.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="calendar_today",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        # Check for calendar - upcoming
+        if self.CALENDAR_UPCOMING.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="calendar_upcoming",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        # Check for briefing
+        if self.BRIEFING_PATTERN.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="briefing",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        # Check for habit status (before other habit patterns)
+        if self.HABIT_STATUS.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="habit_status",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        # Check for habit add
+        match = self.HABIT_ADD.search(text)
+        if match:
+            name = (match.group(1) or match.group(2) or match.group(3)).strip()
+            return CommandResult(
+                is_command=True,
+                command_type="habit_add",
+                params={"user_id": user_id, "name": name},
+                response=None,
+                execute=False
+            )
+
+        # Check for habit list
+        if self.HABIT_LIST.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="habit_list",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        # Check for habit done
+        match = self.HABIT_DONE.search(text)
+        if match:
+            name = (match.group(1) or match.group(2) or match.group(3)).strip()
+            return CommandResult(
+                is_command=True,
+                command_type="habit_done",
+                params={"user_id": user_id, "name": name},
+                response=None,
+                execute=False
+            )
+
         # Check for smart home - turn on
         match = self.TURN_ON_PATTERN.search(text)
         if match:
@@ -530,6 +656,15 @@ def execute_command(result: CommandResult) -> Tuple[bool, Optional[str]]:
 
     if result.command_type.startswith("mood_"):
         return execute_mood_command(result)
+
+    if result.command_type.startswith("calendar_"):
+        return execute_calendar_command(result)
+
+    if result.command_type == "briefing":
+        return execute_briefing_command(result)
+
+    if result.command_type.startswith("habit_"):
+        return execute_habit_command(result)
 
     # Time and date don't need execution, just response
     return True, result.response
@@ -792,6 +927,122 @@ def execute_mood_command(result: CommandResult) -> Tuple[bool, str]:
 
     except Exception as e:
         logger.error(f"Mood command failed: {e}")
+        return False, f"Ошибка: {str(e)}"
+
+
+def execute_calendar_command(result: CommandResult) -> Tuple[bool, str]:
+    """Execute calendar commands."""
+    try:
+        import asyncio
+        from integrations.calendar import get_calendar_integration
+
+        calendar = get_calendar_integration()
+        if not calendar.is_authenticated:
+            return False, "Календарь не подключен. Настрой Google Calendar в админке."
+
+        async def run_calendar():
+            if result.command_type == "calendar_today":
+                data = await calendar.get_today_events()
+                return calendar.format_today(data)
+            elif result.command_type == "calendar_upcoming":
+                data = await calendar.get_upcoming_events(days=7)
+                return calendar.format_events(data)
+            return "Неизвестная команда"
+
+        # Run async
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, run_calendar())
+                    response = future.result()
+            else:
+                response = loop.run_until_complete(run_calendar())
+        except RuntimeError:
+            response = asyncio.run(run_calendar())
+
+        return True, response
+
+    except Exception as e:
+        logger.error(f"Calendar command failed: {e}")
+        return False, f"Ошибка: {str(e)}"
+
+
+def execute_briefing_command(result: CommandResult) -> Tuple[bool, str]:
+    """Execute daily briefing command."""
+    try:
+        import asyncio
+        from core.briefing import get_briefing
+
+        briefing = get_briefing()
+        user_id = result.params.get("user_id", "default")
+
+        async def run_briefing():
+            data = await briefing.generate(user_id)
+            return briefing.format_briefing(data)
+
+        # Run async
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, run_briefing())
+                    response = future.result()
+            else:
+                response = loop.run_until_complete(run_briefing())
+        except RuntimeError:
+            response = asyncio.run(run_briefing())
+
+        return True, response
+
+    except Exception as e:
+        logger.error(f"Briefing command failed: {e}")
+        return False, f"Ошибка: {str(e)}"
+
+
+def execute_habit_command(result: CommandResult) -> Tuple[bool, str]:
+    """Execute habit commands."""
+    try:
+        from core.habits import get_habit_tracker
+
+        tracker = get_habit_tracker()
+        user_id = result.params.get("user_id", "default")
+
+        if result.command_type == "habit_add":
+            name = result.params.get("name", "")
+            habit = tracker.add_habit(user_id, name)
+            return True, f"✨ Добавила привычку: \"{habit.name}\". Говори 'выполнил {name}' когда сделаешь!"
+
+        elif result.command_type == "habit_list":
+            habits = tracker.get_habits(user_id)
+            return True, tracker.format_habits(habits, user_id)
+
+        elif result.command_type == "habit_done":
+            name = result.params.get("name", "")
+            log = tracker.log_habit(user_id, habit_name=name)
+            if log:
+                # Get streak
+                habits = tracker.get_habits(user_id)
+                habit = next((h for h in habits if h.id == log.habit_id), None)
+                streak = tracker.get_streak(user_id, habit) if habit else 0
+
+                if streak > 1:
+                    return True, f"🔥 Отлично! {streak} дней подряд! Так держать!"
+                else:
+                    return True, f"✅ Молодец! Привычка отмечена."
+            else:
+                return False, f"Привычка \"{name}\" не найдена"
+
+        elif result.command_type == "habit_status":
+            status = tracker.get_today_status(user_id)
+            return True, tracker.format_today(status)
+
+        return False, "Неизвестная команда привычек"
+
+    except Exception as e:
+        logger.error(f"Habit command failed: {e}")
         return False, f"Ошибка: {str(e)}"
 
 
