@@ -407,6 +407,22 @@ async def dashboard(request: Request):
     </div>
 
     <div class="card">
+        <h2>🌤️ Погода</h2>
+        <form method="POST" action="/dashboard/weather">
+            <div class="form-group">
+                <label>OpenWeatherMap API Key</label>
+                <input type="password" name="weather_api_key" placeholder="Получить бесплатно на openweathermap.org">
+            </div>
+            <div class="form-group">
+                <label>Город по умолчанию</label>
+                <input type="text" name="weather_city" placeholder="Kyiv">
+            </div>
+            <button type="submit">Сохранить</button>
+        </form>
+        <p class="text-muted mt-2">Команды: "какая погода", "прогноз погоды"</p>
+    </div>
+
+    <div class="card">
         <h2>📋 Логи</h2>
         <a href="/dashboard/logs" class="btn btn-secondary">Просмотр логов</a>
     </div>
@@ -544,6 +560,34 @@ async def dashboard_voice_submit(
     })
 
     return RedirectResponse(url="/dashboard?voice_saved=1", status_code=303)
+
+
+@router.post("/dashboard/weather")
+async def dashboard_weather_submit(
+    request: Request,
+    weather_api_key: str = Form(default=""),
+    weather_city: str = Form(default="Kyiv")
+):
+    """Save weather settings."""
+    token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not token or not auth.verify_token(token):
+        return RedirectResponse(url="/login", status_code=303)
+
+    if weather_api_key:
+        vault = get_vault()
+        vault.store("weather", {
+            "api_key": weather_api_key,
+            "default_city": weather_city
+        })
+
+        # Configure weather service
+        from integrations.weather import get_weather_service
+        weather = get_weather_service()
+        weather.configure(weather_api_key, weather_city)
+
+    return RedirectResponse(url="/dashboard?weather_saved=1", status_code=303)
 
 
 @router.get("/dashboard/integrations", response_class=HTMLResponse)

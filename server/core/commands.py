@@ -93,6 +93,66 @@ class CommandParser:
         re.IGNORECASE
     )
 
+    # Weather patterns
+    WEATHER_CURRENT = re.compile(
+        r'(?:какая\s+)?погода(?:\s+(?:в|in)\s+(.+?))?(?:\s+сейчас|\s+сегодня)?$|'
+        r'weather(?:\s+in\s+(.+?))?(?:\s+now|\s+today)?$',
+        re.IGNORECASE
+    )
+    WEATHER_FORECAST = re.compile(
+        r'прогноз\s+погоды(?:\s+(?:в|in|на)\s+(.+?))?|'
+        r'погода\s+(?:на\s+)?(?:завтра|неделю|(\d+)\s+дн)|'
+        r'weather\s+forecast(?:\s+(?:in|for)\s+(.+?))?',
+        re.IGNORECASE
+    )
+
+    # Notes patterns
+    NOTE_ADD = re.compile(
+        r'(?:запомни|запиши|заметка|note|remember)[:\s]+(.+)',
+        re.IGNORECASE
+    )
+    NOTE_LIST = re.compile(
+        r'(?:мои\s+)?заметки|(?:покажи|список)\s+заметок?|my\s+notes|show\s+notes',
+        re.IGNORECASE
+    )
+    NOTE_SEARCH = re.compile(
+        r'(?:найди|поиск)\s+(?:в\s+)?заметк[аиу][хх]?\s+(.+)|search\s+notes?\s+(.+)',
+        re.IGNORECASE
+    )
+
+    # Tasks patterns
+    TASK_ADD = re.compile(
+        r'(?:добавь|создай|новая)\s+задач[ау][:\s]+(.+)|'
+        r'(?:add|create|new)\s+task[:\s]+(.+)|'
+        r'задача[:\s]+(.+)',
+        re.IGNORECASE
+    )
+    TASK_ADD_URGENT = re.compile(
+        r'(?:срочн[ао]|urgent)[:\s]+(.+)',
+        re.IGNORECASE
+    )
+    TASK_LIST = re.compile(
+        r'(?:мои\s+)?задачи|(?:покажи|список)\s+задач|my\s+tasks|show\s+tasks|todo|туду',
+        re.IGNORECASE
+    )
+    TASK_DONE = re.compile(
+        r'(?:сделано|готово|выполнено|done|complete)[:\s]+(.+)|'
+        r'(?:закрой|завершить)\s+задачу[:\s]+(.+)',
+        re.IGNORECASE
+    )
+
+    # Mood patterns
+    MOOD_LOG = re.compile(
+        r'(?:я\s+)?(?:чувствую\s+себя|настроение|mood)[:\s]+(.+)|'
+        r'(?:мне\s+)?(?:хорошо|плохо|грустно|отлично|устал[аи]?|стресс)',
+        re.IGNORECASE
+    )
+    MOOD_STATS = re.compile(
+        r'(?:моё?\s+)?(?:настроение|mood)\s+(?:за\s+неделю|статистика|stats)|'
+        r'как\s+(?:я\s+)?себя\s+чувствовал|mood\s+history',
+        re.IGNORECASE
+    )
+
     def parse(self, text: str, user_id: str = "default") -> CommandResult:
         """
         Parse message for commands.
@@ -256,6 +316,127 @@ class CommandParser:
                 execute=False
             )
 
+        # Check for weather
+        match = self.WEATHER_CURRENT.search(text)
+        if match:
+            city = match.group(1) or match.group(2)
+            return CommandResult(
+                is_command=True,
+                command_type="weather",
+                params={"city": city, "forecast": False},
+                response=None,
+                execute=False
+            )
+
+        match = self.WEATHER_FORECAST.search(text)
+        if match:
+            city = match.group(1) or match.group(4)
+            days = int(match.group(3)) if match.group(3) else 3
+            return CommandResult(
+                is_command=True,
+                command_type="weather",
+                params={"city": city, "forecast": True, "days": days},
+                response=None,
+                execute=False
+            )
+
+        # Check for notes
+        match = self.NOTE_ADD.search(text)
+        if match:
+            content = match.group(1).strip()
+            return CommandResult(
+                is_command=True,
+                command_type="note_add",
+                params={"user_id": user_id, "content": content},
+                response=None,
+                execute=False
+            )
+
+        if self.NOTE_LIST.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="note_list",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        match = self.NOTE_SEARCH.search(text)
+        if match:
+            query = (match.group(1) or match.group(2)).strip()
+            return CommandResult(
+                is_command=True,
+                command_type="note_search",
+                params={"user_id": user_id, "query": query},
+                response=None,
+                execute=False
+            )
+
+        # Check for tasks
+        match = self.TASK_ADD_URGENT.search(text)
+        if match:
+            title = match.group(1).strip()
+            return CommandResult(
+                is_command=True,
+                command_type="task_add",
+                params={"user_id": user_id, "title": title, "priority": "urgent"},
+                response=None,
+                execute=False
+            )
+
+        match = self.TASK_ADD.search(text)
+        if match:
+            title = (match.group(1) or match.group(2) or match.group(3)).strip()
+            return CommandResult(
+                is_command=True,
+                command_type="task_add",
+                params={"user_id": user_id, "title": title, "priority": "normal"},
+                response=None,
+                execute=False
+            )
+
+        if self.TASK_LIST.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="task_list",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        match = self.TASK_DONE.search(text)
+        if match:
+            title = (match.group(1) or match.group(2)).strip()
+            return CommandResult(
+                is_command=True,
+                command_type="task_done",
+                params={"user_id": user_id, "title": title},
+                response=None,
+                execute=False
+            )
+
+        # Check for mood stats
+        if self.MOOD_STATS.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="mood_stats",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        # Check for mood log
+        match = self.MOOD_LOG.search(text)
+        if match:
+            mood_text = match.group(1) if match.group(1) else text
+            return CommandResult(
+                is_command=True,
+                command_type="mood_log",
+                params={"user_id": user_id, "text": mood_text},
+                response=None,
+                execute=False
+            )
+
         # Check for smart home - turn on
         match = self.TURN_ON_PATTERN.search(text)
         if match:
@@ -337,6 +518,18 @@ def execute_command(result: CommandResult) -> Tuple[bool, Optional[str]]:
 
     if result.command_type == "smart_home":
         return execute_smart_home_command(result)
+
+    if result.command_type == "weather":
+        return execute_weather_command(result)
+
+    if result.command_type.startswith("note_"):
+        return execute_note_command(result)
+
+    if result.command_type.startswith("task_"):
+        return execute_task_command(result)
+
+    if result.command_type.startswith("mood_"):
+        return execute_mood_command(result)
 
     # Time and date don't need execution, just response
     return True, result.response
@@ -459,6 +652,147 @@ def find_entity_by_name(states_result: dict, name: str) -> Optional[str]:
                 return entity_id
 
     return None
+
+
+def execute_weather_command(result: CommandResult) -> Tuple[bool, str]:
+    """Execute weather command."""
+    try:
+        import asyncio
+        from integrations.weather import get_weather_service
+
+        weather = get_weather_service()
+        if not weather.is_configured:
+            return False, "Погода не настроена. Добавь OpenWeatherMap API ключ в настройках."
+
+        city = result.params.get("city")
+        is_forecast = result.params.get("forecast", False)
+
+        async def get_weather():
+            if is_forecast:
+                days = result.params.get("days", 3)
+                data = await weather.get_forecast(city, days)
+                return weather.format_forecast(data)
+            else:
+                data = await weather.get_current(city)
+                return weather.format_current(data)
+
+        # Run async
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, get_weather())
+                    response = future.result()
+            else:
+                response = loop.run_until_complete(get_weather())
+        except RuntimeError:
+            response = asyncio.run(get_weather())
+
+        return True, response
+
+    except Exception as e:
+        logger.error(f"Weather command failed: {e}")
+        return False, f"Ошибка получения погоды: {str(e)}"
+
+
+def execute_note_command(result: CommandResult) -> Tuple[bool, str]:
+    """Execute note commands."""
+    try:
+        from core.notes import get_notes_manager
+
+        manager = get_notes_manager()
+        user_id = result.params.get("user_id", "default")
+
+        if result.command_type == "note_add":
+            content = result.params.get("content", "")
+            note = manager.add_note(user_id, content)
+            return True, f"📝 Записала: \"{content[:50]}{'...' if len(content) > 50 else ''}\""
+
+        elif result.command_type == "note_list":
+            notes = manager.get_notes(user_id)
+            return True, manager.format_notes(notes)
+
+        elif result.command_type == "note_search":
+            query = result.params.get("query", "")
+            notes = manager.search_notes(user_id, query)
+            if notes:
+                return True, f"Найдено {len(notes)} заметок:\n" + manager.format_notes(notes)
+            else:
+                return True, f"Заметок с \"{query}\" не найдено"
+
+        return False, "Неизвестная команда заметок"
+
+    except Exception as e:
+        logger.error(f"Note command failed: {e}")
+        return False, f"Ошибка: {str(e)}"
+
+
+def execute_task_command(result: CommandResult) -> Tuple[bool, str]:
+    """Execute task commands."""
+    try:
+        from core.notes import get_notes_manager
+
+        manager = get_notes_manager()
+        user_id = result.params.get("user_id", "default")
+
+        if result.command_type == "task_add":
+            title = result.params.get("title", "")
+            priority = result.params.get("priority", "normal")
+            task = manager.add_task(user_id, title, priority=priority)
+
+            priority_emoji = {"urgent": "🔴", "high": "🟠", "normal": "🟡", "low": "🟢"}
+            emoji = priority_emoji.get(priority, "📋")
+            return True, f"{emoji} Добавила задачу: \"{title}\""
+
+        elif result.command_type == "task_list":
+            tasks = manager.get_tasks(user_id)
+            return True, manager.format_tasks(tasks)
+
+        elif result.command_type == "task_done":
+            title = result.params.get("title", "")
+            task = manager.complete_task(user_id, task_title=title)
+            if task:
+                return True, f"✅ Отлично! Задача \"{task.title}\" выполнена!"
+            else:
+                return False, f"Задача \"{title}\" не найдена"
+
+        return False, "Неизвестная команда задач"
+
+    except Exception as e:
+        logger.error(f"Task command failed: {e}")
+        return False, f"Ошибка: {str(e)}"
+
+
+def execute_mood_command(result: CommandResult) -> Tuple[bool, str]:
+    """Execute mood commands."""
+    try:
+        from core.mood import get_mood_tracker
+
+        tracker = get_mood_tracker()
+        user_id = result.params.get("user_id", "default")
+
+        if result.command_type == "mood_log":
+            text = result.params.get("text", "")
+            parsed = tracker.parse_mood(text)
+
+            if parsed:
+                mood, score = parsed
+                tracker.log_mood(user_id, mood, score, text)
+                response = tracker.get_response(mood)
+                return True, response
+            else:
+                return True, "Не совсем поняла. Как именно ты себя чувствуешь? Можешь сказать: хорошо, устал, грустно, или оценить от 1 до 10."
+
+        elif result.command_type == "mood_stats":
+            stats = tracker.get_stats(user_id)
+            return True, tracker.format_stats(stats)
+
+        return False, "Неизвестная команда настроения"
+
+    except Exception as e:
+        logger.error(f"Mood command failed: {e}")
+        return False, f"Ошибка: {str(e)}"
 
 
 # Singleton

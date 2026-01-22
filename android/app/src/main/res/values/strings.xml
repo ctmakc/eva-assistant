@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">EVA Assistant</string>
+    <string name="voice_input">Voice input</string>
+    <string name="widget_description">Quick access to EVA voice assistant</string>
+    <string name="widget_name">EVA Quick Voice</string>
 </resources>
