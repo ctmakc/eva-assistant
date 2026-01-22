@@ -607,6 +607,7 @@ async def dashboard_integrations(request: Request):
         </p>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <a href="/dashboard/integrations/home_assistant" class="btn btn-secondary">Home Assistant</a>
+            <a href="/dashboard/integrations/mqtt" class="btn btn-secondary">MQTT</a>
         </div>
     </div>
 
@@ -627,7 +628,56 @@ async def dashboard_integration_detail(request: Request, name: str):
     if not token or not auth.verify_token(token):
         return RedirectResponse(url="/login")
 
-    if name == "home_assistant":
+    if name == "mqtt":
+        content = '''
+        <div class="card">
+            <h2>📡 MQTT</h2>
+            <p style="color: #888; margin-bottom: 20px;">
+                Подключи EVA к MQTT брокеру для управления IoT устройствами
+            </p>
+
+            <form method="POST" action="/dashboard/integrations/mqtt/connect">
+                <div class="form-group">
+                    <label>MQTT Broker Host</label>
+                    <input type="text" name="host" required placeholder="192.168.1.100 или mqtt.example.com">
+                </div>
+                <div class="form-group">
+                    <label>Port</label>
+                    <input type="number" name="port" value="1883" placeholder="1883">
+                </div>
+                <div class="form-group">
+                    <label>Username (опционально)</label>
+                    <input type="text" name="username" placeholder="mqtt_user">
+                </div>
+                <div class="form-group">
+                    <label>Password (опционально)</label>
+                    <input type="password" name="password">
+                </div>
+                <div class="form-group">
+                    <label>Topic Prefix (опционально)</label>
+                    <input type="text" name="topic_prefix" placeholder="home/">
+                </div>
+                <button type="submit">Подключить</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>📖 Поддерживаемые устройства</h2>
+            <ul style="color: #aaa; line-height: 1.8;">
+                <li>Zigbee2MQTT устройства</li>
+                <li>Tasmota устройства</li>
+                <li>Home Assistant MQTT Discovery</li>
+                <li>Любые MQTT-совместимые устройства</li>
+            </ul>
+        </div>
+
+        <div class="mt-2">
+            <a href="/dashboard/integrations">← Назад</a>
+        </div>
+        '''
+        return HTMLResponse(base_template("MQTT Setup", content, token))
+
+    elif name == "home_assistant":
         content = '''
         <div class="card">
             <h2>🏠 Home Assistant</h2>
@@ -709,6 +759,50 @@ async def dashboard_ha_connect(
             return RedirectResponse(url="/dashboard/integrations?connected=home_assistant", status_code=303)
 
     return RedirectResponse(url="/dashboard/integrations/home_assistant?error=1", status_code=303)
+
+
+@router.post("/dashboard/integrations/mqtt/connect")
+async def dashboard_mqtt_connect(
+    request: Request,
+    host: str = Form(...),
+    port: int = Form(default=1883),
+    username: str = Form(default=""),
+    password: str = Form(default=""),
+    topic_prefix: str = Form(default="")
+):
+    """Connect MQTT from dashboard."""
+    cookie_token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not cookie_token or not auth.verify_token(cookie_token):
+        return RedirectResponse(url="/login", status_code=303)
+
+    from integrations.base import get_integration_registry
+
+    registry = get_integration_registry()
+    mqtt = registry.create_integration("mqtt")
+
+    if mqtt:
+        credentials = {
+            "host": host,
+            "port": port,
+            "topic_prefix": topic_prefix
+        }
+        if username:
+            credentials["username"] = username
+        if password:
+            credentials["password"] = password
+
+        success = await mqtt.connect(credentials)
+
+        if success:
+            # Store in vault
+            vault = get_vault()
+            vault.store("integration_mqtt", credentials)
+
+            return RedirectResponse(url="/dashboard/integrations?connected=mqtt", status_code=303)
+
+    return RedirectResponse(url="/dashboard/integrations/mqtt?error=1", status_code=303)
 
 
 @router.get("/dashboard/logs", response_class=HTMLResponse)

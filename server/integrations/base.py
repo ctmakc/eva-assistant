@@ -198,11 +198,15 @@ def _register_builtin_integrations(registry: IntegrationRegistry):
     except ImportError:
         pass
 
+    try:
+        from .mqtt import MQTTIntegration
+        registry.register_class("mqtt", MQTTIntegration)
+    except ImportError:
+        pass
+
     # Future integrations:
     # from .alexa import AlexaIntegration
     # from .moma_coffee import MomaCoffeeIntegration
-    # registry.register_class("alexa", AlexaIntegration)
-    # registry.register_class("moma_coffee", MomaCoffeeIntegration)
 
 
 # ============== Network Discovery ==============

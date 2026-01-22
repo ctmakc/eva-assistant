@@ -161,17 +161,20 @@ async def chat_message(request: ChatMessageRequest):
 
         if cmd_result.is_command and not cmd_result.execute:
             # Execute command and return response without LLM
-            execute_command(cmd_result)
+            success, response_msg = execute_command(cmd_result)
+
+            # Use command response or execution result
+            final_response = response_msg or cmd_result.response or "Готово!"
 
             # Generate audio for command response
             tts = get_tts_service()
             lang = request.language.value
             if lang == "auto":
-                cyrillic_count = sum(1 for c in cmd_result.response if '\u0400' <= c <= '\u04FF')
-                lang = "ru" if cyrillic_count > len(cmd_result.response) * 0.3 else "en"
+                cyrillic_count = sum(1 for c in final_response if '\u0400' <= c <= '\u04FF')
+                lang = "ru" if cyrillic_count > len(final_response) * 0.3 else "en"
 
             audio_path = await tts.synthesize_with_emotion(
-                text=cmd_result.response,
+                text=final_response,
                 language=lang,
                 emotion="friendly"
             )
@@ -180,11 +183,11 @@ async def chat_message(request: ChatMessageRequest):
             # Save to memory
             memory_manager = get_memory_manager()
             memory_manager.add_message(request.user_id, "user", request.text, Language(lang))
-            memory_manager.add_message(request.user_id, "assistant", cmd_result.response)
+            memory_manager.add_message(request.user_id, "assistant", final_response)
 
             return ChatMessageResponse(
                 success=True,
-                response_text=cmd_result.response,
+                response_text=final_response,
                 response_audio_url=audio_url,
                 emotion=Emotion.FRIENDLY
             )

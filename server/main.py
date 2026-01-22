@@ -113,6 +113,49 @@ async def setup_scheduler():
         logger.error(f"Failed to start scheduler: {e}")
 
 
+async def setup_integrations():
+    """Load saved integrations from vault."""
+    try:
+        from integrations.base import get_integration_registry
+        from integrations.vault import get_vault
+
+        registry = get_integration_registry()
+        vault = get_vault()
+
+        # Try to load Home Assistant
+        ha_creds = vault.get("integration_home_assistant")
+        if ha_creds:
+            logger.info("Loading Home Assistant integration...")
+            ha = registry.create_integration("home_assistant")
+            if ha:
+                success = await ha.connect(ha_creds)
+                if success:
+                    logger.info("✓ Home Assistant connected")
+                else:
+                    logger.warning("⚠ Home Assistant connection failed")
+
+        # Try to load MQTT
+        mqtt_creds = vault.get("integration_mqtt")
+        if mqtt_creds:
+            logger.info("Loading MQTT integration...")
+            mqtt = registry.create_integration("mqtt")
+            if mqtt:
+                success = await mqtt.connect(mqtt_creds)
+                if success:
+                    logger.info("✓ MQTT connected")
+                else:
+                    logger.warning("⚠ MQTT connection failed")
+
+        connected = registry.list_connected()
+        if connected:
+            logger.info(f"✓ Integrations loaded: {', '.join(connected)}")
+        else:
+            logger.info("No saved integrations found")
+
+    except Exception as e:
+        logger.error(f"Failed to load integrations: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle events."""
@@ -150,6 +193,7 @@ async def lifespan(app: FastAPI):
     # Setup integrations
     await setup_telegram()
     await setup_scheduler()
+    await setup_integrations()
 
     logger.info("✨ EVA is ready!")
 
