@@ -411,6 +411,12 @@ async def dashboard(request: Request):
         <a href="/dashboard/logs" class="btn btn-secondary">Просмотр логов</a>
     </div>
 
+    <div class="card">
+        <h2>🔌 Интеграции</h2>
+        <p style="color: #888; margin-bottom: 12px;">Умный дом, IoT устройства, сервисы</p>
+        <a href="/dashboard/integrations" class="btn btn-secondary">Управление интеграциями</a>
+    </div>
+
     <div class="mt-2" style="text-align: center;">
         <a href="/logout" style="color: #888;">Выйти</a>
     </div>
@@ -538,6 +544,171 @@ async def dashboard_voice_submit(
     })
 
     return RedirectResponse(url="/dashboard?voice_saved=1", status_code=303)
+
+
+@router.get("/dashboard/integrations", response_class=HTMLResponse)
+async def dashboard_integrations(request: Request):
+    """Integrations management page."""
+    token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not token or not auth.verify_token(token):
+        return RedirectResponse(url="/login")
+
+    from integrations.base import get_integration_registry
+
+    registry = get_integration_registry()
+    available = registry.list_available()
+    connected = registry.list_connected()
+
+    integrations_html = ""
+    for name in available:
+        is_connected = name in connected
+        status_class = "status-ok" if is_connected else "status-warn"
+        status_text = "Подключено" if is_connected else "Не подключено"
+
+        integrations_html += f'''
+        <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong style="color: #00d9ff;">{name}</strong>
+                    <span class="status {status_class}" style="margin-left: 8px;">{status_text}</span>
+                </div>
+                <a href="/dashboard/integrations/{name}" class="btn btn-secondary" style="font-size: 0.85em; padding: 8px 16px;">
+                    {"Настроить" if not is_connected else "Управление"}
+                </a>
+            </div>
+        </div>
+        '''
+
+    if not integrations_html:
+        integrations_html = '<p style="color: #888;">Нет доступных интеграций</p>'
+
+    content = f'''
+    <div class="card">
+        <h2>🔌 Интеграции</h2>
+        {integrations_html}
+    </div>
+
+    <div class="card">
+        <h2>🔍 Поиск устройств</h2>
+        <p style="color: #888; margin-bottom: 12px;">
+            Сканировать локальную сеть на предмет умных устройств
+        </p>
+        <a href="/api/v1/integrations/discover" class="btn btn-secondary" target="_blank">
+            Сканировать сеть
+        </a>
+    </div>
+
+    <div class="card">
+        <h2>➕ Добавить интеграцию</h2>
+        <p style="color: #888; margin-bottom: 12px;">
+            Поддерживаемые типы: Home Assistant, MQTT, Telegram, Gmail
+        </p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="/dashboard/integrations/home_assistant" class="btn btn-secondary">Home Assistant</a>
+        </div>
+    </div>
+
+    <div class="mt-2">
+        <a href="/dashboard">← Назад</a>
+    </div>
+    '''
+
+    return HTMLResponse(base_template("Integrations", content, token))
+
+
+@router.get("/dashboard/integrations/{name}", response_class=HTMLResponse)
+async def dashboard_integration_detail(request: Request, name: str):
+    """Integration detail/setup page."""
+    token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not token or not auth.verify_token(token):
+        return RedirectResponse(url="/login")
+
+    if name == "home_assistant":
+        content = '''
+        <div class="card">
+            <h2>🏠 Home Assistant</h2>
+            <p style="color: #888; margin-bottom: 20px;">
+                Подключи EVA к Home Assistant для управления умным домом голосом
+            </p>
+
+            <form method="POST" action="/dashboard/integrations/home_assistant/connect">
+                <div class="form-group">
+                    <label>URL Home Assistant</label>
+                    <input type="text" name="url" required placeholder="http://192.168.1.100:8123">
+                </div>
+                <div class="form-group">
+                    <label>Long-Lived Access Token</label>
+                    <input type="password" name="token" required placeholder="eyJ0eXAiOi...">
+                    <p class="text-muted" style="margin-top: 8px;">
+                        Получить: Home Assistant → Profile → Long-Lived Access Tokens
+                    </p>
+                </div>
+                <button type="submit">Подключить</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>📖 Что можно делать</h2>
+            <ul style="color: #aaa; line-height: 1.8;">
+                <li>"Включи свет в гостиной"</li>
+                <li>"Выключи все лампы"</li>
+                <li>"Установи температуру 22 градуса"</li>
+                <li>"Какой статус датчика движения"</li>
+                <li>"Список всех устройств"</li>
+            </ul>
+        </div>
+
+        <div class="mt-2">
+            <a href="/dashboard/integrations">← Назад</a>
+        </div>
+        '''
+    else:
+        content = f'''
+        <div class="card">
+            <h2>Интеграция: {name}</h2>
+            <p style="color: #888;">Настройка этой интеграции пока не реализована</p>
+        </div>
+        <div class="mt-2">
+            <a href="/dashboard/integrations">← Назад</a>
+        </div>
+        '''
+
+    return HTMLResponse(base_template(f"Integration: {name}", content, token))
+
+
+@router.post("/dashboard/integrations/home_assistant/connect")
+async def dashboard_ha_connect(
+    request: Request,
+    url: str = Form(...),
+    token: str = Form(...)
+):
+    """Connect Home Assistant from dashboard."""
+    cookie_token = request.cookies.get("eva_token")
+    auth = get_auth_manager()
+
+    if not cookie_token or not auth.verify_token(cookie_token):
+        return RedirectResponse(url="/login", status_code=303)
+
+    from integrations.base import get_integration_registry
+
+    registry = get_integration_registry()
+    ha = registry.create_integration("home_assistant")
+
+    if ha:
+        success = await ha.connect({"url": url, "api_token": token})
+
+        if success:
+            # Store in vault
+            vault = get_vault()
+            vault.store("integration_home_assistant", {"url": url, "api_token": token})
+
+            return RedirectResponse(url="/dashboard/integrations?connected=home_assistant", status_code=303)
+
+    return RedirectResponse(url="/dashboard/integrations/home_assistant?error=1", status_code=303)
 
 
 @router.get("/dashboard/logs", response_class=HTMLResponse)

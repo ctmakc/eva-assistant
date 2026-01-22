@@ -27,13 +27,53 @@ router = APIRouter(prefix="/api/v1")
 # ============== Health ==============
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check():
-    """Check server health."""
-    return HealthResponse(
+async def health_check(detailed: bool = False):
+    """
+    Check server health.
+
+    Set detailed=true for more info (LLM status, integrations).
+    """
+    response = HealthResponse(
         status="ok",
         version="1.0.0",
         eva_status="ready"
     )
+
+    if detailed:
+        # Check LLM
+        try:
+            llm = get_llm_service()
+            llm_ok = llm.llm is not None
+        except Exception:
+            llm_ok = False
+
+        # Check integrations
+        try:
+            from integrations.telegram import get_telegram_integration
+            telegram = get_telegram_integration()
+            telegram_ok = telegram._running
+        except Exception:
+            telegram_ok = False
+
+        from integrations.gmail import get_gmail_integration
+        gmail = get_gmail_integration()
+        gmail_ok = gmail.is_authenticated
+
+        # Return extended info
+        return {
+            "status": "ok",
+            "version": "1.0.0",
+            "eva_status": "ready",
+            "services": {
+                "llm": "ok" if llm_ok else "not_configured",
+                "stt": "ok",  # Always loaded at startup
+                "tts": "ok",
+                "telegram": "running" if telegram_ok else "stopped",
+                "gmail": "connected" if gmail_ok else "not_connected"
+            }
+        }
+
+    return response
 
 
 # ============== Voice Processing ==============
@@ -475,3 +515,145 @@ async def setup_user_schedule(user_id: str):
     scheduler.setup_user_schedule(user_id)
 
     return {"status": "ok", "message": f"Schedule set up for {user_id}"}
+
+
+# ============== Smart Integrations ==============
+
+@router.get("/integrations/discover")
+async def discover_devices():
+    """
+    Scan local network for smart devices.
+
+    Returns list of discovered devices with integration suggestions.
+    """
+    from integrations.base import discover_network_devices, suggest_integrations
+
+    try:
+        devices = await discover_network_devices(timeout=5)
+        suggestions = await suggest_integrations(devices)
+
+        return {
+            "success": True,
+            "devices_found": len(devices),
+            "devices": [
+                {
+                    "ip": d.ip,
+                    "hostname": d.hostname,
+                    "type": d.device_type,
+                    "open_ports": d.open_ports,
+                    "hint": d.integration_hint
+                }
+                for d in devices
+            ],
+            "suggested_integrations": suggestions
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "devices": [],
+            "suggested_integrations": []
+        }
+
+
+@router.get("/integrations/available")
+async def list_available_integrations():
+    """List all available integration types."""
+    from integrations.base import get_integration_registry, IntegrationType
+
+    registry = get_integration_registry()
+
+    return {
+        "registered": registry.list_available(),
+        "connected": registry.list_connected(),
+        "types": [t.value for t in IntegrationType]
+    }
+
+
+@router.post("/integrations/connect/{integration_name}")
+async def connect_integration(
+    integration_name: str,
+    credentials: dict
+):
+    """
+    Connect to an integration.
+
+    Credentials depend on integration type:
+    - home_assistant: {"api_token": "xxx", "url": "http://..."}
+    - mqtt: {"host": "...", "username": "...", "password": "..."}
+    - etc.
+    """
+    from integrations.base import get_integration_registry
+    from integrations.vault import get_vault
+
+    registry = get_integration_registry()
+
+    # Try to create/get integration
+    integration = registry.get(integration_name)
+    if not integration:
+        integration = registry.create_integration(integration_name)
+
+    if not integration:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Integration '{integration_name}' not found. Available: {registry.list_available()}"
+        )
+
+    # Try to connect
+    try:
+        success = await integration.connect(credentials)
+
+        if success:
+            # Store credentials in vault
+            vault = get_vault()
+            vault.store(f"integration_{integration_name}", credentials)
+
+            return {
+                "success": True,
+                "message": f"Connected to {integration_name}",
+                "capabilities": [
+                    {"name": c.name, "description": c.description}
+                    for c in integration.get_capabilities()
+                ]
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Connection failed"
+            }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/integrations/{integration_name}/execute")
+async def execute_integration_action(
+    integration_name: str,
+    action: str,
+    params: dict = None
+):
+    """
+    Execute an action on an integration.
+
+    Example:
+    - POST /integrations/home_assistant/execute
+      {"action": "turn_on", "params": {"entity_id": "light.living_room"}}
+    """
+    from integrations.base import get_integration_registry
+
+    registry = get_integration_registry()
+    integration = registry.get(integration_name)
+
+    if not integration:
+        raise HTTPException(status_code=404, detail=f"Integration not found: {integration_name}")
+
+    if not integration.is_connected:
+        raise HTTPException(status_code=400, detail=f"Integration not connected: {integration_name}")
+
+    try:
+        result = await integration.execute(action, params or {})
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
