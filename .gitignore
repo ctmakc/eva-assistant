@@ -48,3 +48,6 @@ gradle-wrapper.properties
 
 # Claude Code
 .claude/
+
+# Local context (не коммитить)
+CONTEXT.md
