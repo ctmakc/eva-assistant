@@ -10,7 +10,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.eva.assistant.service.WakeWordService
 import com.eva.assistant.ui.theme.EvaBackground
 import com.eva.assistant.ui.theme.EvaPrimary
 
@@ -20,13 +22,17 @@ fun SettingsScreen(
     serverUrl: String,
     userId: String,
     isConnected: Boolean,
+    wakeWordEnabled: Boolean = false,
     onServerUrlChange: (String) -> Unit,
     onUserIdChange: (String) -> Unit,
     onCheckConnection: () -> Unit,
+    onWakeWordChange: (Boolean) -> Unit = {},
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     var urlInput by remember(serverUrl) { mutableStateOf(serverUrl) }
     var userIdInput by remember(userId) { mutableStateOf(userId) }
+    var wakeWordState by remember { mutableStateOf(WakeWordService.isRunning) }
 
     Scaffold(
         topBar = {
@@ -131,6 +137,60 @@ fun SettingsScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = EvaPrimary)
             ) {
                 Text("Сохранить", color = Color.Black)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Wake Word Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White.copy(alpha = 0.05f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Голосовая активация",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Скажи \"Эва\" чтобы активировать",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                    Switch(
+                        checked = wakeWordState,
+                        onCheckedChange = { enabled ->
+                            wakeWordState = enabled
+                            if (enabled) {
+                                WakeWordService.start(context)
+                            } else {
+                                WakeWordService.stop(context)
+                            }
+                            onWakeWordChange(enabled)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = EvaPrimary,
+                            checkedTrackColor = EvaPrimary.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+            }
+
+            if (wakeWordState) {
+                Text(
+                    text = "⚡ EVA слушает в фоне. Скажи \"Эва\" чтобы начать разговор.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = EvaPrimary,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))

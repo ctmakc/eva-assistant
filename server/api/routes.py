@@ -218,6 +218,17 @@ async def chat_message(request: ChatMessageRequest):
         memory_manager.add_message(request.user_id, "user", request.text, Language(lang))
         memory_manager.add_message(request.user_id, "assistant", response_text)
 
+        # Learning: record interaction and extract facts
+        try:
+            from personality.learning import get_learning_module
+            learning = get_learning_module()
+            learning.record_interaction(request.user_id, request.text)
+            learning.update_style_from_message(request.user_id, request.text)
+            learning.extract_facts_from_message(request.user_id, request.text)
+        except Exception as learn_err:
+            # Learning errors shouldn't break the chat
+            pass
+
         # Generate audio
         tts = get_tts_service()
         audio_path = await tts.synthesize_with_emotion(

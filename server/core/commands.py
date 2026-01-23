@@ -205,6 +205,20 @@ class CommandParser:
         re.IGNORECASE
     )
 
+    # Learning/Evolution patterns
+    LEARNING_STATUS = re.compile(
+        r'(?:что\s+)?(?:ты\s+)?(?:знаешь|помнишь)\s+(?:обо?\s+)?мне|'
+        r'(?:как\s+)?ты\s+(?:эволюционировала|развилась|изменилась)|'
+        r'(?:what\s+)?(?:do\s+)?you\s+know\s+about\s+me',
+        re.IGNORECASE
+    )
+    LEARNING_FEEDBACK = re.compile(
+        r'(?:отвечай\s+)?(?:короче|кратко|подробнее|веселее|серьёзнее)|'
+        r'(?:будь\s+)?(?:менее|более)\s+(?:формальн|серьёзн|весёл)|'
+        r'(?:используй|не\s+используй)\s+(?:эмодзи|смайлики)',
+        re.IGNORECASE
+    )
+
     def parse(self, text: str, user_id: str = "default") -> CommandResult:
         """
         Parse message for commands.
@@ -563,6 +577,26 @@ class CommandParser:
                 execute=False
             )
 
+        # Check for learning status
+        if self.LEARNING_STATUS.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="learning_status",
+                params={"user_id": user_id},
+                response=None,
+                execute=False
+            )
+
+        # Check for learning feedback
+        if self.LEARNING_FEEDBACK.search(text):
+            return CommandResult(
+                is_command=True,
+                command_type="learning_feedback",
+                params={"user_id": user_id, "feedback": text},
+                response=None,
+                execute=False
+            )
+
         # Check for smart home - turn on
         match = self.TURN_ON_PATTERN.search(text)
         if match:
@@ -665,6 +699,9 @@ def execute_command(result: CommandResult) -> Tuple[bool, Optional[str]]:
 
     if result.command_type.startswith("habit_"):
         return execute_habit_command(result)
+
+    if result.command_type.startswith("learning_"):
+        return execute_learning_command(result)
 
     # Time and date don't need execution, just response
     return True, result.response
@@ -1043,6 +1080,59 @@ def execute_habit_command(result: CommandResult) -> Tuple[bool, str]:
 
     except Exception as e:
         logger.error(f"Habit command failed: {e}")
+        return False, f"Ошибка: {str(e)}"
+
+
+def execute_learning_command(result: CommandResult) -> Tuple[bool, str]:
+    """Execute learning/evolution commands."""
+    try:
+        from personality.learning import get_learning_module
+
+        learning = get_learning_module()
+        user_id = result.params.get("user_id", "default")
+
+        if result.command_type == "learning_status":
+            # Get what EVA knows about the user
+            facts = learning.get_all_facts(user_id)
+            style = learning.get_style(user_id)
+            stats = learning.get_stats(user_id)
+            summary = learning.get_evolution_summary(user_id)
+
+            response_parts = [summary]
+
+            if facts:
+                fact_lines = [f"  • {k}: {v}" for k, v in list(facts.items())[:5]]
+                response_parts.append("\n📚 Что я помню о тебе:\n" + "\n".join(fact_lines))
+
+            # Style description
+            style_parts = []
+            if style.formality < 0.4:
+                style_parts.append("неформальный стиль")
+            elif style.formality > 0.6:
+                style_parts.append("формальный стиль")
+            if style.humor_level > 0.5:
+                style_parts.append("с юмором")
+            if style.verbosity < 0.4:
+                style_parts.append("краткие ответы")
+            elif style.verbosity > 0.6:
+                style_parts.append("подробные ответы")
+
+            if style_parts:
+                response_parts.append(f"\n🎨 Твой стиль общения: {', '.join(style_parts)}")
+
+            return True, "\n".join(response_parts)
+
+        elif result.command_type == "learning_feedback":
+            feedback = result.params.get("feedback", "")
+            learning.update_style_from_feedback(user_id, feedback)
+            learning.log_evolution(user_id, "feedback_received", {"feedback": feedback})
+
+            return True, "✨ Поняла! Буду учитывать это в наших разговорах."
+
+        return False, "Неизвестная команда"
+
+    except Exception as e:
+        logger.error(f"Learning command failed: {e}")
         return False, f"Ошибка: {str(e)}"
 
 

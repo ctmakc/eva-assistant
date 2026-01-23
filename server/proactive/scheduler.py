@@ -207,8 +207,17 @@ class ProactiveScheduler:
         await self._notify(user_id, message, "checkin")
 
     async def _send_reminder(self, user_id: str, message: str):
-        """Send a custom reminder."""
+        """Send a custom reminder via notification service."""
+        # Send via local handlers
         await self._notify(user_id, f"⏰ Напоминание: {message}", "reminder")
+
+        # Also send via notification service (Telegram, push, etc.)
+        try:
+            from core.notifications import get_notification_service
+            notif_service = get_notification_service()
+            await notif_service.send_reminder(user_id, message)
+        except Exception as e:
+            logger.error(f"Failed to send push notification: {e}")
 
 
 # Singleton
